@@ -8,10 +8,12 @@ class ProductCreate(BaseModel):
     stock: int
     marketplace: str = "Shopee"
 
+
 class ExpenseCreate(BaseModel):
     name: str
     value: float
-    category: str = "Fixo"
+    category: str = "Geral"
+
 
 class PriceSimulation(BaseModel):
     cost: float
