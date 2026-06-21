@@ -3,11 +3,16 @@ from pydantic import BaseModel
 class ProductCreate(BaseModel):
     sku: str
     name: str
+    description: str = ""
+    category: str = ""
+    supplier: str = ""
+    barcode: str = ""
+    image_url: str = ""
     cost: float
     sale_price: float
     stock: int
+    minimum_stock: int = 0
     marketplace: str = "Shopee"
-
 
 class ExpenseCreate(BaseModel):
     name: str
