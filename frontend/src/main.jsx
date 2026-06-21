@@ -1,3 +1,4 @@
+```jsx
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import axios from 'axios';
@@ -30,10 +31,15 @@ function App() {
   const [priceResult, setPriceResult] = useState(null);
 
   async function loadData() {
-    const dash = await axios.get(${API}/dashboard);
-    const prods = await axios.get(${API}/products);
-    setDashboard(dash.data);
-    setProducts(prods.data);
+    try {
+      const dash = await axios.get(`${API}/dashboard`);
+      const prods = await axios.get(`${API}/products`);
+
+      setDashboard(dash.data);
+      setProducts(prods.data);
+    } catch (error) {
+      console.log(error);
+    }
   }
 
   useEffect(() => {
@@ -43,46 +49,59 @@ function App() {
   async function createProduct(e) {
     e.preventDefault();
 
-    await axios.post(${API}/products, {
-      ...form,
-      cost: Number(form.cost),
-      sale_price: Number(form.sale_price),
-      stock: Number(form.stock)
-    });
+    try {
+      await axios.post(`${API}/products`, {
+        ...form,
+        cost: Number(form.cost),
+        sale_price: Number(form.sale_price),
+        stock: Number(form.stock)
+      });
 
-    setForm({
-      sku: '',
-      name: '',
-      cost: '',
-      sale_price: '',
-      stock: '',
-      marketplace: 'Shopee'
-    });
+      setForm({
+        sku: '',
+        name: '',
+        cost: '',
+        sale_price: '',
+        stock: '',
+        marketplace: 'Shopee'
+      });
 
-    loadData();
+      loadData();
+    } catch (error) {
+      console.log(error);
+    }
   }
 
   async function deleteProduct(id) {
-    if (!confirm('Deseja excluir este produto?')) return;
+    if (!window.confirm('Deseja excluir este produto?')) return;
 
-    await axios.delete(${API}/products/${id});
-    loadData();
+    try {
+      await axios.delete(`${API}/products/${id}`);
+      loadData();
+    } catch (error) {
+      console.log(error);
+    }
   }
 
   async function simulatePrice(e) {
     e.preventDefault();
 
-    const response = await axios.post(${API}/pricing/simulate, {
-      ...pricing,
-      cost: Number(pricing.cost)
-    });
+    try {
+      const response = await axios.post(`${API}/pricing/simulate`, {
+        ...pricing,
+        cost: Number(pricing.cost)
+      });
 
-    setPriceResult(response.data);
+      setPriceResult(response.data);
+    } catch (error) {
+      console.log(error);
+    }
   }
 
   return (
     <div className="container">
       <h1>Catedral ERP</h1>
+
       <p className="subtitle">
         Controle de produtos, estoque, custos e precificação para marketplaces.
       </p>
@@ -111,13 +130,15 @@ function App() {
           <input
             placeholder="Custo do produto"
             value={pricing.cost}
-            onChange={e => setPricing({ ...pricing, cost: e.target.value })}
+            onChange={(e) =>
+              setPricing({ ...pricing, cost: e.target.value })
+            }
           />
 
           <input
             placeholder="Lucro desejado %"
             value={pricing.desired_profit_percent}
-            onChange={e =>
+            onChange={(e) =>
               setPricing({
                 ...pricing,
                 desired_profit_percent: Number(e.target.value)
@@ -128,7 +149,7 @@ function App() {
           <input
             placeholder="Taxa marketplace %"
             value={pricing.marketplace_fee_percent}
-            onChange={e =>
+            onChange={(e) =>
               setPricing({
                 ...pricing,
                 marketplace_fee_percent: Number(e.target.value)
@@ -139,7 +160,7 @@ function App() {
           <input
             placeholder="Frete %"
             value={pricing.freight_percent}
-            onChange={e =>
+            onChange={(e) =>
               setPricing({
                 ...pricing,
                 freight_percent: Number(e.target.value)
@@ -164,31 +185,41 @@ function App() {
           <input
             placeholder="SKU"
             value={form.sku}
-            onChange={e => setForm({ ...form, sku: e.target.value })}
+            onChange={(e) =>
+              setForm({ ...form, sku: e.target.value })
+            }
           />
 
           <input
             placeholder="Nome do produto"
             value={form.name}
-            onChange={e => setForm({ ...form, name: e.target.value })}
+            onChange={(e) =>
+              setForm({ ...form, name: e.target.value })
+            }
           />
 
           <input
             placeholder="Custo"
             value={form.cost}
-            onChange={e => setForm({ ...form, cost: e.target.value })}
+            onChange={(e) =>
+              setForm({ ...form, cost: e.target.value })
+            }
           />
 
           <input
             placeholder="Preço venda"
             value={form.sale_price}
-            onChange={e => setForm({ ...form, sale_price: e.target.value })}
+            onChange={(e) =>
+              setForm({ ...form, sale_price: e.target.value })
+            }
           />
 
           <input
             placeholder="Estoque"
             value={form.stock}
-            onChange={e => setForm({ ...form, stock: e.target.value })}
+            onChange={(e) =>
+              setForm({ ...form, stock: e.target.value })
+            }
           />
 
           <button type="submit">Cadastrar</button>
@@ -212,7 +243,7 @@ function App() {
           </thead>
 
           <tbody>
-            {products.map(p => (
+            {products.map((p) => (
               <tr key={p.id}>
                 <td>{p.sku}</td>
                 <td>{p.name}</td>
@@ -221,7 +252,10 @@ function App() {
                 <td>{p.stock}</td>
                 <td>{p.marketplace}</td>
                 <td>
-                  <button type="button" onClick={() => deleteProduct(p.id)}>
+                  <button
+                    type="button"
+                    onClick={() => deleteProduct(p.id)}
+                  >
                     Excluir
                   </button>
                 </td>
@@ -235,3 +269,4 @@ function App() {
 }
 
 createRoot(document.getElementById('root')).render(<App />);
+```
