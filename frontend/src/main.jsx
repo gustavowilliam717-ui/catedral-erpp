@@ -1,4 +1,3 @@
-```jsx
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import axios from 'axios';
@@ -9,14 +8,13 @@ const API = import.meta.env.VITE_API_URL;
 function App() {
   const [dashboard, setDashboard] = useState({});
   const [products, setProducts] = useState([]);
-
   const [form, setForm] = useState({
     sku: '',
     name: '',
     cost: '',
     sale_price: '',
     stock: '',
-    marketplace: 'Shopee'
+    marketplace: 'Shopee',
   });
 
   const [pricing, setPricing] = useState({
@@ -25,21 +23,16 @@ function App() {
     marketplace_fee_percent: 18,
     freight_percent: 4,
     anticipation_percent: 3.5,
-    fixed_cost_percent: 0
+    fixed_cost_percent: 0,
   });
 
   const [priceResult, setPriceResult] = useState(null);
 
   async function loadData() {
-    try {
-      const dash = await axios.get(`${API}/dashboard`);
-      const prods = await axios.get(`${API}/products`);
-
-      setDashboard(dash.data);
-      setProducts(prods.data);
-    } catch (error) {
-      console.log(error);
-    }
+    const dash = await axios.get(${API}/dashboard);
+    const prods = await axios.get(${API}/products);
+    setDashboard(dash.data);
+    setProducts(prods.data);
   }
 
   useEffect(() => {
@@ -49,53 +42,51 @@ function App() {
   async function createProduct(e) {
     e.preventDefault();
 
-    try {
-      await axios.post(`${API}/products`, {
-        ...form,
-        cost: Number(form.cost),
-        sale_price: Number(form.sale_price),
-        stock: Number(form.stock)
-      });
+    await axios.post(${API}/products, {
+      sku: form.sku,
+      name: form.name,
+      cost: Number(form.cost),
+      sale_price: Number(form.sale_price),
+      stock: Number(form.stock),
+      marketplace: form.marketplace,
+    });
 
-      setForm({
-        sku: '',
-        name: '',
-        cost: '',
-        sale_price: '',
-        stock: '',
-        marketplace: 'Shopee'
-      });
+    setForm({
+      sku: '',
+      name: '',
+      cost: '',
+      sale_price: '',
+      stock: '',
+      marketplace: 'Shopee',
+    });
 
-      loadData();
-    } catch (error) {
-      console.log(error);
-    }
+    loadData();
   }
 
   async function deleteProduct(id) {
-    if (!window.confirm('Deseja excluir este produto?')) return;
+    const confirmDelete = window.confirm('Deseja excluir este produto?');
 
-    try {
-      await axios.delete(`${API}/products/${id}`);
-      loadData();
-    } catch (error) {
-      console.log(error);
+    if (!confirmDelete) {
+      return;
     }
+
+    await axios.delete(${API}/products/${id});
+    loadData();
   }
 
   async function simulatePrice(e) {
     e.preventDefault();
 
-    try {
-      const response = await axios.post(`${API}/pricing/simulate`, {
-        ...pricing,
-        cost: Number(pricing.cost)
-      });
+    const response = await axios.post(${API}/pricing/simulate, {
+      cost: Number(pricing.cost),
+      desired_profit_percent: Number(pricing.desired_profit_percent),
+      marketplace_fee_percent: Number(pricing.marketplace_fee_percent),
+      freight_percent: Number(pricing.freight_percent),
+      anticipation_percent: Number(pricing.anticipation_percent),
+      fixed_cost_percent: Number(pricing.fixed_cost_percent),
+    });
 
-      setPriceResult(response.data);
-    } catch (error) {
-      console.log(error);
-    }
+    setPriceResult(response.data);
   }
 
   return (
@@ -130,9 +121,7 @@ function App() {
           <input
             placeholder="Custo do produto"
             value={pricing.cost}
-            onChange={(e) =>
-              setPricing({ ...pricing, cost: e.target.value })
-            }
+            onChange={(e) => setPricing({ ...pricing, cost: e.target.value })}
           />
 
           <input
@@ -141,7 +130,7 @@ function App() {
             onChange={(e) =>
               setPricing({
                 ...pricing,
-                desired_profit_percent: Number(e.target.value)
+                desired_profit_percent: e.target.value,
               })
             }
           />
@@ -152,7 +141,7 @@ function App() {
             onChange={(e) =>
               setPricing({
                 ...pricing,
-                marketplace_fee_percent: Number(e.target.value)
+                marketplace_fee_percent: e.target.value,
               })
             }
           />
@@ -163,7 +152,7 @@ function App() {
             onChange={(e) =>
               setPricing({
                 ...pricing,
-                freight_percent: Number(e.target.value)
+                freight_percent: e.target.value,
               })
             }
           />
@@ -185,41 +174,31 @@ function App() {
           <input
             placeholder="SKU"
             value={form.sku}
-            onChange={(e) =>
-              setForm({ ...form, sku: e.target.value })
-            }
+            onChange={(e) => setForm({ ...form, sku: e.target.value })}
           />
 
           <input
             placeholder="Nome do produto"
             value={form.name}
-            onChange={(e) =>
-              setForm({ ...form, name: e.target.value })
-            }
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
 
           <input
             placeholder="Custo"
             value={form.cost}
-            onChange={(e) =>
-              setForm({ ...form, cost: e.target.value })
-            }
+            onChange={(e) => setForm({ ...form, cost: e.target.value })}
           />
 
           <input
             placeholder="Preço venda"
             value={form.sale_price}
-            onChange={(e) =>
-              setForm({ ...form, sale_price: e.target.value })
-            }
+            onChange={(e) => setForm({ ...form, sale_price: e.target.value })}
           />
 
           <input
             placeholder="Estoque"
             value={form.stock}
-            onChange={(e) =>
-              setForm({ ...form, stock: e.target.value })
-            }
+            onChange={(e) => setForm({ ...form, stock: e.target.value })}
           />
 
           <button type="submit">Cadastrar</button>
@@ -243,18 +222,18 @@ function App() {
           </thead>
 
           <tbody>
-            {products.map((p) => (
-              <tr key={p.id}>
-                <td>{p.sku}</td>
-                <td>{p.name}</td>
-                <td>R$ {p.cost}</td>
-                <td>R$ {p.sale_price}</td>
-                <td>{p.stock}</td>
-                <td>{p.marketplace}</td>
+            {products.map((product) => (
+              <tr key={product.id}>
+                <td>{product.sku}</td>
+                <td>{product.name}</td>
+                <td>R$ {product.cost}</td>
+                <td>R$ {product.sale_price}</td>
+                <td>{product.stock}</td>
+                <td>{product.marketplace}</td>
                 <td>
                   <button
                     type="button"
-                    onClick={() => deleteProduct(p.id)}
+                    onClick={() => deleteProduct(product.id)}
                   >
                     Excluir
                   </button>
@@ -269,4 +248,3 @@ function App() {
 }
 
 createRoot(document.getElementById('root')).render(<App />);
-```
