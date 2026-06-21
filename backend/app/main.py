@@ -10,8 +10,13 @@ app = FastAPI(title="Catedral ERP MVP")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=[
+        "https://catedral-erpp.vercel.app",
+        "https://catedral-erpp-5sqw7t39z-catedralerp.vercel.app",
+        "https://www.catedralerp.com.br",
+        "https://catedralerp.com.br",
+    ],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
