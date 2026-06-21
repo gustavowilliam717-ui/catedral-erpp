@@ -33,14 +33,20 @@ export default function Products() {
       marketplace: form.marketplace
     });
 
-    setForm({
-      sku: "",
-      name: "",
-      cost: "",
-      sale_price: "",
-      stock: "",
-      marketplace: "Shopee"
-    });
+    const [form, setForm] = useState({
+  sku: "",
+  name: "",
+  description: "",
+  category: "",
+  supplier: "",
+  barcode: "",
+  image_url: "",
+  cost: "",
+  sale_price: "",
+  stock: "",
+  minimum_stock: "",
+  marketplace: "Shopee"
+});
 
     loadProducts();
   }
