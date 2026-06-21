@@ -33,6 +33,36 @@ export default function Products() {
       marketplace: form.marketplace
     });
 
+    <input
+  placeholder="Categoria"
+  value={form.category}
+  onChange={(e) => setForm({ ...form, category: e.target.value })}
+/>
+
+<input
+  placeholder="Fornecedor"
+  value={form.supplier}
+  onChange={(e) => setForm({ ...form, supplier: e.target.value })}
+/>
+
+<input
+  placeholder="Código de barras"
+  value={form.barcode}
+  onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+/>
+
+<input
+  placeholder="Estoque mínimo"
+  value={form.minimum_stock}
+  onChange={(e) => setForm({ ...form, minimum_stock: e.target.value })}
+/>
+
+<input
+  placeholder="URL da imagem"
+  value={form.image_url}
+  onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+/>
+
     const [form, setForm] = useState({
   sku: "",
   name: "",
