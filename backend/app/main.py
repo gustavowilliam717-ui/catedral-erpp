@@ -11,14 +11,11 @@ app = FastAPI(title="Catedral ERP")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://catedral-erpp.vercel.app",
-        "https://www.catedralerp.com.br",
-        "https://catedralerp.com.br",
-    ],
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+)
 )
 
 @app.get("/")
