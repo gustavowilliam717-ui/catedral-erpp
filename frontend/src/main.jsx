@@ -8,13 +8,14 @@ const API = import.meta.env.VITE_API_URL;
 function App() {
   const [dashboard, setDashboard] = useState({});
   const [products, setProducts] = useState([]);
+
   const [form, setForm] = useState({
     sku: '',
     name: '',
     cost: '',
     sale_price: '',
     stock: '',
-    marketplace: 'Shopee',
+    marketplace: 'Shopee'
   });
 
   const [pricing, setPricing] = useState({
@@ -23,14 +24,15 @@ function App() {
     marketplace_fee_percent: 18,
     freight_percent: 4,
     anticipation_percent: 3.5,
-    fixed_cost_percent: 0,
+    fixed_cost_percent: 0
   });
 
   const [priceResult, setPriceResult] = useState(null);
 
   async function loadData() {
-    const dash = await axios.get(`${API}/dashboard`);
-    const prods = await axios.get(`${API}/products`);
+    const dash = await axios.get(API + '/dashboard');
+    const prods = await axios.get(API + '/products');
+
     setDashboard(dash.data);
     setProducts(prods.data);
   }
@@ -42,13 +44,13 @@ function App() {
   async function createProduct(e) {
     e.preventDefault();
 
-    await axios.post(`${API}/products`, {
+    await axios.post(API + '/products', {
       sku: form.sku,
       name: form.name,
       cost: Number(form.cost),
       sale_price: Number(form.sale_price),
       stock: Number(form.stock),
-      marketplace: form.marketplace,
+      marketplace: form.marketplace
     });
 
     setForm({
@@ -57,33 +59,32 @@ function App() {
       cost: '',
       sale_price: '',
       stock: '',
-      marketplace: 'Shopee',
+      marketplace: 'Shopee'
     });
 
     loadData();
   }
 
   async function deleteProduct(id) {
-    const confirmDelete = window.confirm('Deseja excluir este produto?');
-
-    if (!confirmDelete) {
+    if (!window.confirm('Deseja excluir este produto?')) {
       return;
     }
 
-    await axios.delete(`${API}/products/${id}`);
+    await axios.delete(API + '/products/' + id);
+
     loadData();
   }
 
   async function simulatePrice(e) {
     e.preventDefault();
 
-    const response = await axios.post(`${API}/pricing/simulate`, {
+    const response = await axios.post(API + '/pricing/simulate', {
       cost: Number(pricing.cost),
       desired_profit_percent: Number(pricing.desired_profit_percent),
       marketplace_fee_percent: Number(pricing.marketplace_fee_percent),
       freight_percent: Number(pricing.freight_percent),
       anticipation_percent: Number(pricing.anticipation_percent),
-      fixed_cost_percent: Number(pricing.fixed_cost_percent),
+      fixed_cost_percent: Number(pricing.fixed_cost_percent)
     });
 
     setPriceResult(response.data);
@@ -92,10 +93,6 @@ function App() {
   return (
     <div className="container">
       <h1>Catedral ERP</h1>
-
-      <p className="subtitle">
-        Controle de produtos, estoque, custos e precificação para marketplaces.
-      </p>
 
       <div className="cards">
         <div className="card">
@@ -117,43 +114,12 @@ function App() {
       <section>
         <h2>Calculadora de preço</h2>
 
-        <form onSubmit={simulatePrice} className="grid">
+        <form onSubmit={simulatePrice}>
           <input
-            placeholder="Custo do produto"
+            placeholder="Custo"
             value={pricing.cost}
-            onChange={(e) => setPricing({ ...pricing, cost: e.target.value })}
-          />
-
-          <input
-            placeholder="Lucro desejado %"
-            value={pricing.desired_profit_percent}
             onChange={(e) =>
-              setPricing({
-                ...pricing,
-                desired_profit_percent: e.target.value,
-              })
-            }
-          />
-
-          <input
-            placeholder="Taxa marketplace %"
-            value={pricing.marketplace_fee_percent}
-            onChange={(e) =>
-              setPricing({
-                ...pricing,
-                marketplace_fee_percent: e.target.value,
-              })
-            }
-          />
-
-          <input
-            placeholder="Frete %"
-            value={pricing.freight_percent}
-            onChange={(e) =>
-              setPricing({
-                ...pricing,
-                freight_percent: e.target.value,
-              })
+              setPricing({ ...pricing, cost: e.target.value })
             }
           />
 
@@ -161,8 +127,8 @@ function App() {
         </form>
 
         {priceResult && (
-          <div className="result">
-            Preço sugerido: <strong>R$ {priceResult.suggested_price}</strong>
+          <div>
+            Preço sugerido: R$ {priceResult.suggested_price}
           </div>
         )}
       </section>
@@ -170,38 +136,50 @@ function App() {
       <section>
         <h2>Cadastrar produto</h2>
 
-        <form onSubmit={createProduct} className="grid">
+        <form onSubmit={createProduct}>
           <input
             placeholder="SKU"
             value={form.sku}
-            onChange={(e) => setForm({ ...form, sku: e.target.value })}
+            onChange={(e) =>
+              setForm({ ...form, sku: e.target.value })
+            }
           />
 
           <input
-            placeholder="Nome do produto"
+            placeholder="Nome"
             value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            onChange={(e) =>
+              setForm({ ...form, name: e.target.value })
+            }
           />
 
           <input
             placeholder="Custo"
             value={form.cost}
-            onChange={(e) => setForm({ ...form, cost: e.target.value })}
+            onChange={(e) =>
+              setForm({ ...form, cost: e.target.value })
+            }
           />
 
           <input
             placeholder="Preço venda"
             value={form.sale_price}
-            onChange={(e) => setForm({ ...form, sale_price: e.target.value })}
+            onChange={(e) =>
+              setForm({ ...form, sale_price: e.target.value })
+            }
           />
 
           <input
             placeholder="Estoque"
             value={form.stock}
-            onChange={(e) => setForm({ ...form, stock: e.target.value })}
+            onChange={(e) =>
+              setForm({ ...form, stock: e.target.value })
+            }
           />
 
-          <button type="submit">Cadastrar</button>
+          <button type="submit">
+            Cadastrar
+          </button>
         </form>
       </section>
 
@@ -216,7 +194,6 @@ function App() {
               <th>Custo</th>
               <th>Venda</th>
               <th>Estoque</th>
-              <th>Marketplace</th>
               <th>Ações</th>
             </tr>
           </thead>
@@ -229,7 +206,7 @@ function App() {
                 <td>R$ {product.cost}</td>
                 <td>R$ {product.sale_price}</td>
                 <td>{product.stock}</td>
-                <td>{product.marketplace}</td>
+
                 <td>
                   <button
                     type="button"
@@ -241,6 +218,7 @@ function App() {
               </tr>
             ))}
           </tbody>
+
         </table>
       </section>
     </div>
