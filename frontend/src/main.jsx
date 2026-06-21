@@ -29,8 +29,8 @@ function App() {
   const [priceResult, setPriceResult] = useState(null);
 
   async function loadData() {
-    const dash = await axios.get(`${API}/dashboard`);
-    const prods = await axios.get(`${API}/products`);
+    const dash = await axios.get(${API}/dashboard);
+    const prods = await axios.get(${API}/products);
     setDashboard(dash.data);
     setProducts(prods.data);
   }
@@ -41,22 +41,33 @@ function App() {
 
   async function createProduct(e) {
     e.preventDefault();
-    await axios.post(`${API}/products`, {
+
+    await axios.post(${API}/products, {
       ...form,
       cost: Number(form.cost),
       sale_price: Number(form.sale_price),
       stock: Number(form.stock)
     });
+
     setForm({ sku: '', name: '', cost: '', sale_price: '', stock: '', marketplace: 'Shopee' });
+    loadData();
+  }
+
+  async function deleteProduct(id) {
+    if (!confirm('Deseja excluir este produto?')) return;
+
+    await axios.delete(${API}/products/${id});
     loadData();
   }
 
   async function simulatePrice(e) {
     e.preventDefault();
-    const response = await axios.post(`${API}/pricing/simulate`, {
+
+    const response = await axios.post(${API}/pricing/simulate, {
       ...pricing,
       cost: Number(pricing.cost)
     });
+
     setPriceResult(response.data);
   }
 
@@ -80,7 +91,12 @@ function App() {
           <input placeholder="Frete %" value={pricing.freight_percent} onChange={e => setPricing({...pricing, freight_percent: Number(e.target.value)})} />
           <button>Simular preço</button>
         </form>
-        {priceResult && <div className="result">Preço sugerido: <strong>R$ {priceResult.suggested_price}</strong></div>}
+
+        {priceResult && (
+          <div className="result">
+            Preço sugerido: <strong>R$ {priceResult.suggested_price}</strong>
+          </div>
+        )}
       </section>
 
       <section>
@@ -99,8 +115,17 @@ function App() {
         <h2>Produtos cadastrados</h2>
         <table>
           <thead>
-            <tr><th>SKU</th><th>Produto</th><th>Custo</th><th>Venda</th><th>Estoque</th><th>Marketplace</th></tr>
+            <tr>
+              <th>SKU</th>
+              <th>Produto</th>
+              <th>Custo</th>
+              <th>Venda</th>
+              <th>Estoque</th>
+              <th>Marketplace</th>
+              <th>Ações</th>
+            </tr>
           </thead>
+
           <tbody>
             {products.map(p => (
               <tr key={p.id}>
@@ -110,6 +135,9 @@ function App() {
                 <td>R$ {p.sale_price}</td>
                 <td>{p.stock}</td>
                 <td>{p.marketplace}</td>
+                <td>
+                  <button onClick={() => deleteProduct(p.id)}>Excluir</button>
+                </td>
               </tr>
             ))}
           </tbody>
