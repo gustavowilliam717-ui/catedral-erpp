@@ -1,16 +1,19 @@
-export default function Sidebar() {
+export default function Sidebar({ setPage }) {
   return (
-    <div className="sidebar">
+    <aside className="sidebar">
       <h2>Catedral ERP</h2>
 
-      <ul>
-        <li>Dashboard</li>
-        <li>Produtos</li>
-        <li>Financeiro</li>
-        <li>Pedidos</li>
-        <li>Relatórios</li>
-        <li>Configurações</li>
-      </ul>
-    </div>
+      <button onClick={() => setPage("dashboard")}>Dashboard</button>
+      <button onClick={() => setPage("products")}>Produtos</button>
+      <button onClick={() => setPage("finance")}>Financeiro</button>
+
+      <div className="menu-disabled">
+        <span>Pedidos</span>
+        <span>Compras</span>
+        <span>Estoque</span>
+        <span>Relatórios</span>
+        <span>Integrações</span>
+      </div>
+    </aside>
   );
 }
