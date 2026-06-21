@@ -29,8 +29,8 @@ function App() {
   const [priceResult, setPriceResult] = useState(null);
 
   async function loadData() {
-    const dash = await axios.get(${API}/dashboard);
-    const prods = await axios.get(${API}/products);
+    const dash = await axios.get(`${API}/dashboard`);
+    const prods = await axios.get(`${API}/products`);
     setDashboard(dash.data);
     setProducts(prods.data);
   }
@@ -42,7 +42,7 @@ function App() {
   async function createProduct(e) {
     e.preventDefault();
 
-    await axios.post(${API}/products, {
+    await axios.post(`${API}/products`, {
       sku: form.sku,
       name: form.name,
       cost: Number(form.cost),
@@ -70,14 +70,14 @@ function App() {
       return;
     }
 
-    await axios.delete(${API}/products/${id});
+    await axios.delete(`${API}/products/${id}`);
     loadData();
   }
 
   async function simulatePrice(e) {
     e.preventDefault();
 
-    const response = await axios.post(${API}/pricing/simulate, {
+    const response = await axios.post(`${API}/pricing/simulate`, {
       cost: Number(pricing.cost),
       desired_profit_percent: Number(pricing.desired_profit_percent),
       marketplace_fee_percent: Number(pricing.marketplace_fee_percent),
