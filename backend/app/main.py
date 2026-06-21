@@ -37,6 +37,33 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
 def list_products(db: Session = Depends(get_db)):
     return db.query(models.Product).all()
 
+
+@app.put("/products/{product_id}")
+def update_product(product_id: int, product: schemas.ProductCreate, db: Session = Depends(get_db)):
+    db_product = db.query(models.Product).filter(models.Product.id == product_id).first()
+
+    if not db_product:
+        return {"error": "Produto não encontrado"}
+
+    for key, value in product.model_dump().items():
+        setattr(db_product, key, value)
+
+    db.commit()
+    db.refresh(db_product)
+    return db_product
+
+
+@app.delete("/products/{product_id}")
+def delete_product(product_id: int, db: Session = Depends(get_db)):
+    db_product = db.query(models.Product).filter(models.Product.id == product_id).first()
+
+    if not db_product:
+        return {"error": "Produto não encontrado"}
+
+    db.delete(db_product)
+    db.commit()
+
+    return {"message": "Produto excluído com sucesso"}
 @app.post("/expenses")
 def create_expense(expense: schemas.ExpenseCreate, db: Session = Depends(get_db)):
     db_expense = models.Expense(**expense.model_dump())
