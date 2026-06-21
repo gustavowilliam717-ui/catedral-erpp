@@ -1,25 +1,18 @@
 from sqlalchemy import Column, Integer, String, Float
 from .database import Base
 
+
 class Product(Base):
     __tablename__ = "products"
 
-   id
-sku
-name
-description
-category
-supplier
-cost
-sale_price
-stock
-minimum_stock
-barcode
-image_url
-marketplace
-active
-created_at
-updated_at
+    id = Column(Integer, primary_key=True, index=True)
+    sku = Column(String, index=True)
+    name = Column(String, index=True)
+    cost = Column(Float, default=0)
+    sale_price = Column(Float, default=0)
+    stock = Column(Integer, default=0)
+    marketplace = Column(String, default="Shopee")
+
 
 class Expense(Base):
     __tablename__ = "expenses"
