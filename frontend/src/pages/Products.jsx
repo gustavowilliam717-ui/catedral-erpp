@@ -3,6 +3,7 @@ import API from "../services/api";
 
 export default function Products() {
   const [products, setProducts] = useState([]);
+  const [search, setSearch] = useState("");
 
   const [form, setForm] = useState({
     sku: "",
@@ -66,10 +67,21 @@ export default function Products() {
 
   async function deleteProduct(id) {
     if (!window.confirm("Deseja excluir este produto?")) return;
-
     await API.delete("/products/" + id);
     loadProducts();
   }
+
+  const filteredProducts = products.filter((product) => {
+    const term = search.toLowerCase();
+
+    return (
+      product.sku?.toLowerCase().includes(term) ||
+      product.name?.toLowerCase().includes(term) ||
+      product.category?.toLowerCase().includes(term) ||
+      product.supplier?.toLowerCase().includes(term) ||
+      product.marketplace?.toLowerCase().includes(term)
+    );
+  });
 
   return (
     <div className="page">
@@ -104,7 +116,16 @@ export default function Products() {
       </div>
 
       <div className="box">
-        <h2>Produtos cadastrados</h2>
+        <div className="table-header">
+          <h2>Produtos cadastrados</h2>
+
+          <input
+            className="search-input"
+            placeholder="Buscar por SKU, nome, categoria ou fornecedor"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
 
         <table>
           <thead>
@@ -123,7 +144,7 @@ export default function Products() {
           </thead>
 
           <tbody>
-            {products.map((product) => {
+            {filteredProducts.map((product) => {
               const lowStock = Number(product.stock) <= Number(product.minimum_stock);
 
               return (
