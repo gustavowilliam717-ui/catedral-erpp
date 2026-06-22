@@ -1,31 +1,99 @@
 export default function Sidebar({ setPage }) {
   return (
     <aside className="sidebar">
-      <h2>Catedral ERP</h2>
+
+      <div className="logo-area">
+        🚀
+        <div>
+          <h2>Catedral ERP</h2>
+          <span>Marketplace Intelligence</span>
+        </div>
+      </div>
+
+      <small>OPERAÇÃO</small>
 
       <button onClick={() => setPage("dashboard")}>
-        Dashboard
+        🏠 Dashboard
       </button>
 
       <button onClick={() => setPage("products")}>
-        Produtos
-      </button>
-
-      <button onClick={() => setPage("finance")}>
-        Financeiro
+        📦 Produtos
       </button>
 
       <button onClick={() => setPage("pricing")}>
-        Precificação
+        🧮 Precificação
       </button>
 
-      <div className="menu-disabled">
-        <span>Pedidos</span>
-        <span>Compras</span>
-        <span>Estoque</span>
-        <span>Relatórios</span>
-        <span>Integrações</span>
+      <button>
+        📋 Pedidos
+      </button>
+
+      <button>
+        📦 Estoque
+      </button>
+
+      <small>FINANCEIRO</small>
+
+      <button>
+        💰 Receitas
+      </button>
+
+      <button>
+        💸 Despesas
+      </button>
+
+      <button>
+        📈 Fluxo de Caixa
+      </button>
+
+      <button>
+        📊 DRE
+      </button>
+
+      <small>INTELIGÊNCIA</small>
+
+      <button>
+        🤖 IA Catedral
+      </button>
+
+      <button>
+        📊 Relatórios
+      </button>
+
+      <button>
+        🏆 Ranking Produtos
+      </button>
+
+      <button>
+        🎯 Metas
+      </button>
+
+      <small>SISTEMA</small>
+
+      <button>
+        🔗 Integrações
+      </button>
+
+      <button>
+        ⚙️ Configurações
+      </button>
+
+      <button>
+        👤 Usuários
+      </button>
+
+      <div className="sidebar-footer">
+
+        <div className="pro-box">
+          <strong>🛡 PRO</strong>
+
+          <span>
+            Catedral ERP v1.0
+          </span>
+        </div>
+
       </div>
+
     </aside>
   );
 }
