@@ -1,30 +1,50 @@
+import { useEffect, useState } from "react";
+import API from "../services/api";
+
 export default function Stock() {
- const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState([]);
 
-useEffect(() => {
-  loadProducts();
-}, []);
+  useEffect(() => {
+    loadProducts();
+  }, []);
 
-async function loadProducts() {
-  try {
-    const response = await API.get("/products");
-    setProducts(response.data || []);
-  } catch (error) {
-    console.log(error);
-  }
-}
-  ];
-
-  function daysLeft(stock, monthlySales) {
-    if (!monthlySales) return 0;
-    return Math.floor(stock / (monthlySales / 30));
+  async function loadProducts() {
+    try {
+      const response = await API.get("/products");
+      setProducts(response.data || []);
+    } catch (error) {
+      console.log(error);
+    }
   }
 
-  function suggestion(item) {
-    const ideal = item.monthlySales + item.minimum;
-    const buy = ideal - item.stock;
-    return buy > 0 ? buy : 0;
+  function daysLeft(stock) {
+    const monthlySales = 100;
+    const stockValue = Number(stock || 0);
+
+    if (stockValue <= 0) return 0;
+
+    return Math.floor(stockValue / (monthlySales / 30));
   }
+
+  function suggestion(stock, minimumStock) {
+    const stockValue = Number(stock || 0);
+    const minimum = Number(minimumStock || 0);
+
+    if (stockValue < minimum) {
+      return minimum + 100 - stockValue;
+    }
+
+    return 0;
+  }
+
+  const criticalStock = products.filter(
+    (item) => Number(item.stock || 0) < Number(item.minimum_stock || 0)
+  ).length;
+
+  const totalSuggestion = products.reduce(
+    (sum, item) => sum + suggestion(item.stock, item.minimum_stock),
+    0
+  );
 
   return (
     <div className="page">
@@ -40,13 +60,13 @@ async function loadProducts() {
         <div className="dashboard-card-premium">
           <span>🔴</span>
           <h3>Estoque crítico</h3>
-          <p>{products.filter((p) => p.stock < p.minimum).length}</p>
+          <p>{criticalStock}</p>
         </div>
 
         <div className="dashboard-card-premium">
           <span>🛒</span>
-          <h3>Sugestão de compra</h3>
-          <p>{products.reduce((s, p) => s + suggestion(p), 0)}</p>
+          <h3>Sugestão de reposição</h3>
+          <p>{totalSuggestion}</p>
         </div>
       </div>
 
@@ -60,7 +80,6 @@ async function loadProducts() {
               <th>Produto</th>
               <th>Estoque</th>
               <th>Mínimo</th>
-              <th>Venda/mês</th>
               <th>Dias restantes</th>
               <th>Sugestão</th>
               <th>Status</th>
@@ -69,58 +88,41 @@ async function loadProducts() {
 
           <tbody>
             {products.map((item) => {
-              const remainingDays = daysLeft(item.stock, item.monthlySales);
-              const buySuggestion = suggestion(item);
+              const stock = Number(item.stock || 0);
+              const minimum = Number(item.minimum_stock || 0);
 
               return (
-                <tr key={item.sku}>
-                  <td>{item.sku}</td>
-                  <td>{item.name}</td>
-                  <td>{item.stock}</td>
-                  <td>{item.minimum}</td>
-                  <td>{item.monthlySales}</td>
-                  <td>{remainingDays} dias</td>
-                  <td>{buySuggestion} unidades</td>
-                  <td>
-                    {item.stock < item.minimum ? "🔴 Repor agora" : "🟢 OK"}
-                  </td>
+                <tr key={item.id}>
+                  <td>{item.sku || "-"}</td>
+                  <td>{item.name || "Produto sem nome"}</td>
+                  <td>{stock}</td>
+                  <td>{minimum}</td>
+                  <td>{daysLeft(stock)} dias</td>
+                  <td>{suggestion(stock, minimum)} unidades</td>
+                  <td>{stock < minimum ? "🔴 Repor agora" : "🟢 OK"}</td>
                 </tr>
               );
             })}
+
+            {products.length === 0 && (
+              <tr>
+                <td colSpan="7">Nenhum produto cadastrado ainda.</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
 
       <div className="dashboard-alerts">
         <h2>🤖 IA Catedral</h2>
+
         <div>
-          <span>🔴 Existem produtos abaixo do estoque mínimo.</span>
-          <span>🛒 Sugestão automática de compra calculada.</span>
-          <span>📦 Estoque inteligente em desenvolvimento.</span>
-          <span>🚀 Próximo passo: integrar com produtos reais.</span>
+          <span>🔴 {criticalStock} produtos estão abaixo do mínimo.</span>
+          <span>🛒 Reposição automática calculada.</span>
+          <span>📦 Estoque monitorado em tempo real.</span>
+          <span>🚀 Próximo passo: previsão por IA.</span>
         </div>
       </div>
     </div>
   );
 }
-<div className="dashboard-alerts">
-  <h2>🤖 IA Catedral</h2>
-
-  <div>
-    <span>
-      🔴 Existem produtos abaixo do estoque mínimo.
-    </span>
-
-    <span>
-      🛒 Sugestão automática de reposição calculada.
-    </span>
-
-    <span>
-      📦 Estoque médio baseado em vendas mensais.
-    </span>
-
-    <span>
-      🚀 Próximo passo: integrar com produtos reais.
-    </span>
-  </div>
-</div>
