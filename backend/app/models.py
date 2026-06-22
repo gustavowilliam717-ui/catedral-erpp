@@ -27,3 +27,12 @@ class Expense(Base):
     name = Column(String, index=True)
     value = Column(Float, default=0)
     category = Column(String, default="Geral")
+
+
+class Revenue(Base):
+    __tablename__ = "revenues"
+
+    id = Column(Integer, primary_key=True, index=True)
+    description = Column(String, default="")
+    value = Column(Float, default=0)
+    category = Column(String, default="Venda")
