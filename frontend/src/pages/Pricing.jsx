@@ -333,22 +333,25 @@ Devolução Fácil: ${money(easyReturnValue)}
 
     navigator.clipboard.writeText(text);
     alert("Resumo copiado!");
-    
+  }
+
   async function savePricingHistory() {
-  const product = products.find((item) => String(item.id) === String(selectedProduct));
+    const product = products.find(
+      (item) => String(item.id) === String(selectedProduct)
+    );
 
-  await API.post("/pricing-history", {
-    product_id: selectedProduct ? Number(selectedProduct) : 0,
-    sku: product?.sku || "",
-    product_name: product?.name || "Produto sem nome",
-    marketplace: data.marketplace,
-    suggested_price: Number(result.finalPrice),
-    profit: Number(result.profit),
-    margin: Number(result.margin)
-  });
+    await API.post("/pricing-history", {
+      product_id: selectedProduct ? Number(selectedProduct) : 0,
+      sku: product?.sku || "",
+      product_name: product?.name || "Produto sem nome",
+      marketplace: data.marketplace,
+      suggested_price: Number(result.finalPrice),
+      profit: Number(result.profit),
+      margin: Number(result.margin),
+    });
 
-  alert("Precificação salva no histórico!");
-}
+    alert("Precificação salva no histórico!");
+  }
 
   return (
     <div className="page">
@@ -357,7 +360,10 @@ Devolução Fácil: ${money(easyReturnValue)}
       <div className="box">
         <h2>Selecionar produto cadastrado</h2>
 
-        <select value={selectedProduct} onChange={(e) => selectProduct(e.target.value)}>
+        <select
+          value={selectedProduct}
+          onChange={(e) => selectProduct(e.target.value)}
+        >
           <option value="">Escolha um produto cadastrado</option>
 
           {products.map((product) => (
@@ -372,12 +378,18 @@ Devolução Fácil: ${money(easyReturnValue)}
         <h2>Dados do Produto</h2>
 
         <div className="form-grid">
-          <select value={data.sellerType} onChange={(e) => update("sellerType", e.target.value)}>
+          <select
+            value={data.sellerType}
+            onChange={(e) => update("sellerType", e.target.value)}
+          >
             <option>CNPJ</option>
             <option>CPF</option>
           </select>
 
-          <select value={data.marketplace} onChange={(e) => update("marketplace", e.target.value)}>
+          <select
+            value={data.marketplace}
+            onChange={(e) => update("marketplace", e.target.value)}
+          >
             <option>Shopee</option>
             <option>Mercado Livre</option>
             <option>TikTok Shop</option>
@@ -385,15 +397,30 @@ Devolução Fácil: ${money(easyReturnValue)}
           </select>
 
           {data.marketplace === "Mercado Livre" && (
-            <select value={data.mlAdType} onChange={(e) => update("mlAdType", e.target.value)}>
+            <select
+              value={data.mlAdType}
+              onChange={(e) => update("mlAdType", e.target.value)}
+            >
               <option>Clássico</option>
               <option>Premium</option>
             </select>
           )}
 
-          <input placeholder="Imposto (%)" value={data.taxPercent} onChange={(e) => update("taxPercent", e.target.value)} />
-          <input placeholder="Custo do produto" value={data.cost} onChange={(e) => update("cost", e.target.value)} />
-          <input placeholder="Custo da embalagem" value={data.packaging} onChange={(e) => update("packaging", e.target.value)} />
+          <input
+            placeholder="Imposto (%)"
+            value={data.taxPercent}
+            onChange={(e) => update("taxPercent", e.target.value)}
+          />
+          <input
+            placeholder="Custo do produto"
+            value={data.cost}
+            onChange={(e) => update("cost", e.target.value)}
+          />
+          <input
+            placeholder="Custo da embalagem"
+            value={data.packaging}
+            onChange={(e) => update("packaging", e.target.value)}
+          />
         </div>
       </div>
 
@@ -401,17 +428,45 @@ Devolução Fácil: ${money(easyReturnValue)}
         <h2>Consumíveis</h2>
 
         <div className="form-grid">
-          <input value={data.consumable1Name} onChange={(e) => update("consumable1Name", e.target.value)} />
-          <input placeholder="Valor" value={data.consumable1Value} onChange={(e) => update("consumable1Value", e.target.value)} />
+          <input
+            value={data.consumable1Name}
+            onChange={(e) => update("consumable1Name", e.target.value)}
+          />
+          <input
+            placeholder="Valor"
+            value={data.consumable1Value}
+            onChange={(e) => update("consumable1Value", e.target.value)}
+          />
 
-          <input value={data.consumable2Name} onChange={(e) => update("consumable2Name", e.target.value)} />
-          <input placeholder="Valor" value={data.consumable2Value} onChange={(e) => update("consumable2Value", e.target.value)} />
+          <input
+            value={data.consumable2Name}
+            onChange={(e) => update("consumable2Name", e.target.value)}
+          />
+          <input
+            placeholder="Valor"
+            value={data.consumable2Value}
+            onChange={(e) => update("consumable2Value", e.target.value)}
+          />
 
-          <input value={data.consumable3Name} onChange={(e) => update("consumable3Name", e.target.value)} />
-          <input placeholder="Valor" value={data.consumable3Value} onChange={(e) => update("consumable3Value", e.target.value)} />
+          <input
+            value={data.consumable3Name}
+            onChange={(e) => update("consumable3Name", e.target.value)}
+          />
+          <input
+            placeholder="Valor"
+            value={data.consumable3Value}
+            onChange={(e) => update("consumable3Value", e.target.value)}
+          />
 
-          <input value={data.consumable4Name} onChange={(e) => update("consumable4Name", e.target.value)} />
-          <input placeholder="Valor" value={data.consumable4Value} onChange={(e) => update("consumable4Value", e.target.value)} />
+          <input
+            value={data.consumable4Name}
+            onChange={(e) => update("consumable4Name", e.target.value)}
+          />
+          <input
+            placeholder="Valor"
+            value={data.consumable4Value}
+            onChange={(e) => update("consumable4Value", e.target.value)}
+          />
         </div>
       </div>
 
@@ -419,22 +474,40 @@ Devolução Fácil: ${money(easyReturnValue)}
         <h2>Como calcular o preço?</h2>
 
         <div className="pricing-options">
-          <button type="button" onClick={() => update("calculationMode", "margin")}>Margem de Lucro %</button>
-          <button type="button" onClick={() => update("calculationMode", "salePrice")}>Preço de Venda</button>
-          <button type="button" onClick={() => update("calculationMode", "profitValue")}>Lucro Desejado R$</button>
+          <button type="button" onClick={() => update("calculationMode", "margin")}>
+            Margem de Lucro %
+          </button>
+          <button type="button" onClick={() => update("calculationMode", "salePrice")}>
+            Preço de Venda
+          </button>
+          <button type="button" onClick={() => update("calculationMode", "profitValue")}>
+            Lucro Desejado R$
+          </button>
         </div>
 
         <div className="form-grid">
           {data.calculationMode === "margin" && (
-            <input placeholder="Margem desejada %" value={data.desiredMargin} onChange={(e) => update("desiredMargin", e.target.value)} />
+            <input
+              placeholder="Margem desejada %"
+              value={data.desiredMargin}
+              onChange={(e) => update("desiredMargin", e.target.value)}
+            />
           )}
 
           {data.calculationMode === "salePrice" && (
-            <input placeholder="Preço de venda R$" value={data.salePrice} onChange={(e) => update("salePrice", e.target.value)} />
+            <input
+              placeholder="Preço de venda R$"
+              value={data.salePrice}
+              onChange={(e) => update("salePrice", e.target.value)}
+            />
           )}
 
           {data.calculationMode === "profitValue" && (
-            <input placeholder="Lucro desejado R$" value={data.desiredProfitValue} onChange={(e) => update("desiredProfitValue", e.target.value)} />
+            <input
+              placeholder="Lucro desejado R$"
+              value={data.desiredProfitValue}
+              onChange={(e) => update("desiredProfitValue", e.target.value)}
+            />
           )}
         </div>
       </div>
@@ -443,40 +516,78 @@ Devolução Fácil: ${money(easyReturnValue)}
         <h2>Marketing e Simulações</h2>
 
         <div className="form-grid">
-          <input placeholder="Vendas estimadas por mês" value={data.estimatedSales} onChange={(e) => update("estimatedSales", e.target.value)} />
-          <input placeholder="Desconto %" value={data.discountPercent} onChange={(e) => update("discountPercent", e.target.value)} />
+          <input
+            placeholder="Vendas estimadas por mês"
+            value={data.estimatedSales}
+            onChange={(e) => update("estimatedSales", e.target.value)}
+          />
+          <input
+            placeholder="Desconto %"
+            value={data.discountPercent}
+            onChange={(e) => update("discountPercent", e.target.value)}
+          />
 
-          <select value={data.couponType} onChange={(e) => update("couponType", e.target.value)}>
+          <select
+            value={data.couponType}
+            onChange={(e) => update("couponType", e.target.value)}
+          >
             <option value="percent">Cupom em %</option>
             <option value="real">Cupom em R$</option>
           </select>
 
-          <input placeholder="Valor do cupom" value={data.couponValue} onChange={(e) => update("couponValue", e.target.value)} />
-          <input placeholder="Shopee Ads %" value={data.adsPercent} onChange={(e) => update("adsPercent", e.target.value)} />
+          <input
+            placeholder="Valor do cupom"
+            value={data.couponValue}
+            onChange={(e) => update("couponValue", e.target.value)}
+          />
+          <input
+            placeholder="Shopee Ads %"
+            value={data.adsPercent}
+            onChange={(e) => update("adsPercent", e.target.value)}
+          />
         </div>
 
         {data.marketplace === "Shopee" && (
           <>
             <label className="check-line">
-              <input type="checkbox" checked={data.freeShippingProgram} onChange={(e) => update("freeShippingProgram", e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={data.freeShippingProgram}
+                onChange={(e) => update("freeShippingProgram", e.target.checked)}
+              />
               Programa Frete Grátis Shopee (+6%)
             </label>
 
             <label className="check-line">
-              <input type="checkbox" checked={data.shopeeVideo} onChange={(e) => update("shopeeVideo", e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={data.shopeeVideo}
+                onChange={(e) => update("shopeeVideo", e.target.checked)}
+              />
               Shopee Vídeo (+2%)
             </label>
 
             <label className="check-line">
-              <input type="checkbox" checked={data.affiliateCommission} onChange={(e) => update("affiliateCommission", e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={data.affiliateCommission}
+                onChange={(e) => update("affiliateCommission", e.target.checked)}
+              />
               Comissão de Afiliados
             </label>
 
             {data.affiliateCommission && (
-              <input placeholder="Percentual afiliado %" value={data.affiliatePercent} onChange={(e) => update("affiliatePercent", e.target.value)} />
+              <input
+                placeholder="Percentual afiliado %"
+                value={data.affiliatePercent}
+                onChange={(e) => update("affiliatePercent", e.target.value)}
+              />
             )}
 
-            <select value={data.shopeeAcelera} onChange={(e) => update("shopeeAcelera", e.target.value)}>
+            <select
+              value={data.shopeeAcelera}
+              onChange={(e) => update("shopeeAcelera", e.target.value)}
+            >
               <option value="0">Não uso Shopee Acelera</option>
               <option value="3">Shopee Acelera 3%</option>
               <option value="5">Shopee Acelera 5%</option>
@@ -486,12 +597,20 @@ Devolução Fácil: ${money(easyReturnValue)}
         )}
 
         <label className="check-line">
-          <input type="checkbox" checked={data.highlightCampaign} onChange={(e) => update("highlightCampaign", e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={data.highlightCampaign}
+            onChange={(e) => update("highlightCampaign", e.target.checked)}
+          />
           Campanhas de Destaque (+3,5%)
         </label>
 
         <label className="check-line">
-          <input type="checkbox" checked={data.easyReturn} onChange={(e) => update("easyReturn", e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={data.easyReturn}
+            onChange={(e) => update("easyReturn", e.target.checked)}
+          />
           Devolução Fácil (+R$ 0,49)
         </label>
       </div>
@@ -499,7 +618,9 @@ Devolução Fácil: ${money(easyReturnValue)}
       <div className="result-highlight">
         <h2>Preço Sugerido</h2>
         <strong>{money(result.finalPrice)}</strong>
-        <span>Lucro Real: {money(result.profit)} ({result.margin.toFixed(1)}%)</span>
+        <span>
+          Lucro Real: {money(result.profit)} ({result.margin.toFixed(1)}%)
+        </span>
       </div>
 
       <div className="cards">
@@ -609,17 +730,20 @@ Devolução Fácil: ${money(easyReturnValue)}
           </div>
         </div>
       )}
-<div className="box">
-  <h2>Salvar Precificação</h2>
-  <p>Guarde este cálculo para consultar depois no histórico.</p>
 
-  <button type="button" onClick={savePricingHistory}>
-    Salvar precificação
-  </button>
-</div>
+      <div className="box">
+        <h2>Salvar Precificação</h2>
+        <p>Guarde este cálculo para consultar depois no histórico.</p>
+        <button type="button" onClick={savePricingHistory}>
+          Salvar precificação
+        </button>
+      </div>
+
       <div className="box">
         <h2>Compartilhar Resultado</h2>
-        <button type="button" onClick={copySummary}>Copiar resumo completo</button>
+        <button type="button" onClick={copySummary}>
+          Copiar resumo completo
+        </button>
       </div>
     </div>
   );
