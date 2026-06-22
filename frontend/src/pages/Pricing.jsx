@@ -4,18 +4,28 @@ export default function Pricing() {
   const [data, setData] = useState({
     sellerType: "CNPJ",
     marketplace: "Shopee",
+    mlAdType: "Clássico",
+    taxRegime: "Simples Nacional",
+
     cost: "",
     packaging: "",
+
     calculationMode: "margin",
     desiredMargin: 30,
     salePrice: "",
     desiredProfitValue: "",
-    taxPercent: 1.5,
+
     marketAveragePrice: "",
     estimatedSales: "",
+
     discountPercent: "",
     couponType: "percent",
     couponValue: "",
+
+    freeShippingProgram: false,
+    shopeeVideo: false,
+    affiliateCommission: false,
+    affiliatePercent: 5,
     highlightCampaign: false,
     shopeeAcelera: "0",
     easyReturn: false
@@ -30,65 +40,82 @@ export default function Pricing() {
   }
 
   function money(value) {
-    return `R$ ${Number(value || 0).toFixed(2)}`;
+    return "R$ " + Number(value || 0).toFixed(2);
+  }
+
+  function getTaxPercent() {
+    if (data.taxRegime === "MEI") return 0;
+    if (data.taxRegime === "Simples Nacional") return 1.5;
+    if (data.taxRegime === "Lucro Presumido") return 5;
+    if (data.taxRegime === "Lucro Real") return 8;
+    return 0;
   }
 
   function getMarketplaceRule(marketplace, price) {
-  const sellerType = data.sellerType;
+    if (marketplace === "Shopee") {
+      const percent = data.sellerType === "CPF" ? 14 : 14;
+      const fixed = data.sellerType === "CPF" ? 7 : 4;
 
-  if (marketplace === "Shopee") {
-    const percent = 14;
-    let fixed = 4;
-
-    if (sellerType === "CPF") {
-      fixed = 7;
+      return {
+        percent,
+        fixed
+      };
     }
 
-    return {
-      percent,
-      fixed
-    };
-  }
+    if (marketplace === "Mercado Livre") {
+      const percent = data.mlAdType === "Premium" ? 17 : 12;
+      const fixed = price < 79 ? 6.75 : 0;
 
-  if (marketplace === "Mercado Livre") {
-    return {
-      percent: 17,
-      fixed: price < 79 ? 6.75 : 0
-    };
-  }
+      return {
+        percent,
+        fixed
+      };
+    }
 
-  if (marketplace === "TikTok Shop") {
-    return {
-      percent: 6,
-      fixed: price < 79 ? 2 : 0
-    };
-  }
+    if (marketplace === "TikTok Shop") {
+      return {
+        percent: 6,
+        fixed: price < 79 ? 2 : 0
+      };
+    }
 
-  if (marketplace === "Amazon") {
+    if (marketplace === "Amazon") {
+      return {
+        percent: 16,
+        fixed: 0
+      };
+    }
+
     return {
       percent: 16,
       fixed: 0
     };
   }
 
-  return {
-    percent: 16,
-    fixed: 0
-  };
-}
-
   const cost = num(data.cost);
   const packaging = num(data.packaging);
   const productCost = cost + packaging;
 
+  const taxPercent = getTaxPercent();
   const discountPercent = num(data.discountPercent);
   const couponValue = num(data.couponValue);
-  const taxPercent = num(data.taxPercent);
+
+  const freeShippingPercent =
+    data.marketplace === "Shopee" && data.freeShippingProgram ? 6 : 0;
+
+  const shopeeVideoPercent =
+    data.marketplace === "Shopee" && data.shopeeVideo ? 2 : 0;
+
+  const affiliatePercent =
+    data.marketplace === "Shopee" && data.affiliateCommission
+      ? num(data.affiliatePercent)
+      : 0;
+
   const highlightPercent = data.highlightCampaign ? 3.5 : 0;
   const aceleraPercent = num(data.shopeeAcelera);
   const easyReturnValue = data.easyReturn ? 0.49 : 0;
 
-  function calculateByPrice(finalPrice) {
+  function calculateByPrice(finalPrice, marketplace = data.marketplace) {
     const afterDiscount = finalPrice - finalPrice * (discountPercent / 100);
 
     const afterCoupon =
@@ -96,18 +123,28 @@ export default function Pricing() {
         ? afterDiscount - afterDiscount * (couponValue / 100)
         : afterDiscount - couponValue;
 
-    const rule = getMarketplaceRule(data.marketplace, finalPrice);
+    const rule = getMarketplaceRule(marketplace, finalPrice);
+
     const marketplaceFee = afterCoupon * (rule.percent / 100);
     const taxValue = afterCoupon * (taxPercent / 100);
+    const freeShippingValue = afterCoupon * (freeShippingPercent / 100);
+    const shopeeVideoValue = afterCoupon * (shopeeVideoPercent / 100);
+    const affiliateValue = afterCoupon * (affiliatePercent / 100);
     const highlightValue = afterCoupon * (highlightPercent / 100);
     const aceleraValue = afterCoupon * (aceleraPercent / 100);
+
+    const marketingValue =
+      freeShippingValue +
+      shopeeVideoValue +
+      affiliateValue +
+      highlightValue +
+      aceleraValue;
 
     const totalFees =
       marketplaceFee +
       rule.fixed +
       taxValue +
-      highlightValue +
-      aceleraValue +
+      marketingValue +
       easyReturnValue;
 
     const totalCostAndFees = productCost + totalFees;
@@ -120,8 +157,12 @@ export default function Pricing() {
       rule,
       marketplaceFee,
       taxValue,
+      freeShippingValue,
+      shopeeVideoValue,
+      affiliateValue,
       highlightValue,
       aceleraValue,
+      marketingValue,
       totalFees,
       totalCostAndFees,
       profit,
@@ -129,17 +170,22 @@ export default function Pricing() {
     };
   }
 
-  function calculateSuggestedPrice() {
-    if (data.calculationMode === "salePrice") return num(data.salePrice);
+  function calculateSuggestedPrice(marketplace = data.marketplace) {
+    if (data.calculationMode === "salePrice") {
+      return num(data.salePrice);
+    }
 
     let estimatedPrice = productCost * 2 || 1;
 
-    for (let i = 0; i < 20; i++) {
-      const rule = getMarketplaceRule(data.marketplace, estimatedPrice);
+    for (let i = 0; i < 30; i++) {
+      const rule = getMarketplaceRule(marketplace, estimatedPrice);
 
       const totalPercent =
         rule.percent +
         taxPercent +
+        freeShippingPercent +
+        shopeeVideoPercent +
+        affiliatePercent +
         highlightPercent +
         aceleraPercent +
         num(data.desiredMargin);
@@ -149,12 +195,22 @@ export default function Pricing() {
       if (data.calculationMode === "profitValue") {
         estimatedPrice =
           (productCost + fixedCosts + num(data.desiredProfitValue)) /
-          (1 - (rule.percent + taxPercent + highlightPercent + aceleraPercent) / 100);
+          (1 -
+            (rule.percent +
+              taxPercent +
+              freeShippingPercent +
+              shopeeVideoPercent +
+              affiliatePercent +
+              highlightPercent +
+              aceleraPercent) /
+              100);
       } else {
         estimatedPrice = (productCost + fixedCosts) / (1 - totalPercent / 100);
       }
 
-      if (discountPercent > 0) estimatedPrice = estimatedPrice / (1 - discountPercent / 100);
+      if (discountPercent > 0) {
+        estimatedPrice = estimatedPrice / (1 - discountPercent / 100);
+      }
 
       if (couponValue > 0) {
         estimatedPrice =
@@ -180,18 +236,24 @@ export default function Pricing() {
   const yearlyCosts = monthlyCosts * 12;
   const yearlyProfit = monthlyProfit * 12;
 
-  const distributionTotal =
-    cost +
-    packaging +
-    result.marketplaceFee +
-    result.rule.fixed +
-    result.taxValue +
-    Math.max(result.profit, 0);
+  function compareMarketplace(marketplace) {
+    const price = calculateSuggestedPrice(marketplace);
+    const calc = calculateByPrice(price, marketplace);
 
-  function percentPart(value) {
-    if (distributionTotal <= 0) return 0;
-    return (value / distributionTotal) * 100;
+    return {
+      marketplace,
+      price,
+      profit: calc.profit,
+      margin: calc.margin
+    };
   }
+
+  const comparisons = [
+    compareMarketplace("Shopee"),
+    compareMarketplace("Mercado Livre"),
+    compareMarketplace("TikTok Shop"),
+    compareMarketplace("Amazon")
+  ];
 
   function copySummary() {
     const text = `
@@ -209,10 +271,10 @@ Produto: ${money(cost)}
 Embalagem: ${money(packaging)}
 
 🏪 Taxas:
-Comissão ${data.marketplace}: ${money(result.marketplaceFee)}
+Comissão: ${money(result.marketplaceFee)}
 Taxa fixa: ${money(result.rule.fixed)}
 Impostos: ${money(result.taxValue)}
-Marketing: ${money(result.highlightValue + result.aceleraValue)}
+Marketing: ${money(result.marketingValue)}
 Devolução Fácil: ${money(easyReturnValue)}
 
 📌 Total custos + taxas: ${money(result.totalCostAndFees)}
@@ -231,7 +293,7 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
     `.trim();
 
     navigator.clipboard.writeText(text);
-    alert("Resumo copiado para compartilhar!");
+    alert("Resumo copiado!");
   }
 
   return (
@@ -254,6 +316,21 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
             <option>Amazon</option>
           </select>
 
+          {data.marketplace === "Mercado Livre" && (
+            <select value={data.mlAdType} onChange={(e) => update("mlAdType", e.target.value)}>
+              <option>Clássico</option>
+              <option>Premium</option>
+            </select>
+          )}
+
+          <select value={data.taxRegime} onChange={(e) => update("taxRegime", e.target.value)}>
+            <option>MEI</option>
+            <option>Simples Nacional</option>
+            <option>Lucro Presumido</option>
+            <option>Lucro Real</option>
+            <option>Outro</option>
+          </select>
+
           <input placeholder="Custo do produto" value={data.cost} onChange={(e) => update("cost", e.target.value)} />
           <input placeholder="Custo da embalagem" value={data.packaging} onChange={(e) => update("packaging", e.target.value)} />
         </div>
@@ -263,9 +340,17 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
         <h2>Como calcular o preço?</h2>
 
         <div className="pricing-options">
-          <button type="button" onClick={() => update("calculationMode", "margin")}>Margem de Lucro %</button>
-          <button type="button" onClick={() => update("calculationMode", "salePrice")}>Preço de Venda</button>
-          <button type="button" onClick={() => update("calculationMode", "profitValue")}>Lucro Desejado R$</button>
+          <button type="button" onClick={() => update("calculationMode", "margin")}>
+            Margem de Lucro %
+          </button>
+
+          <button type="button" onClick={() => update("calculationMode", "salePrice")}>
+            Preço de Venda
+          </button>
+
+          <button type="button" onClick={() => update("calculationMode", "profitValue")}>
+            Lucro Desejado R$
+          </button>
         </div>
 
         <div className="form-grid">
@@ -287,7 +372,6 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
         <h2>Outras Configurações</h2>
 
         <div className="form-grid">
-          <input placeholder="Imposto %" value={data.taxPercent} onChange={(e) => update("taxPercent", e.target.value)} />
           <input placeholder="Preço médio do mercado" value={data.marketAveragePrice} onChange={(e) => update("marketAveragePrice", e.target.value)} />
           <input placeholder="Vendas estimadas por mês" value={data.estimatedSales} onChange={(e) => update("estimatedSales", e.target.value)} />
         </div>
@@ -313,6 +397,33 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
             <option value="10">Shopee Acelera 10%</option>
           </select>
         </div>
+
+        {data.marketplace === "Shopee" && (
+          <>
+            <label className="check-line">
+              <input type="checkbox" checked={data.freeShippingProgram} onChange={(e) => update("freeShippingProgram", e.target.checked)} />
+              Programa Frete Grátis Shopee (+6%)
+            </label>
+
+            <label className="check-line">
+              <input type="checkbox" checked={data.shopeeVideo} onChange={(e) => update("shopeeVideo", e.target.checked)} />
+              Shopee Vídeo (+2%)
+            </label>
+
+            <label className="check-line">
+              <input type="checkbox" checked={data.affiliateCommission} onChange={(e) => update("affiliateCommission", e.target.checked)} />
+              Comissão de Afiliados
+            </label>
+
+            {data.affiliateCommission && (
+              <input
+                placeholder="Percentual afiliado %"
+                value={data.affiliatePercent}
+                onChange={(e) => update("affiliatePercent", e.target.value)}
+              />
+            )}
+          </>
+        )}
 
         <label className="check-line">
           <input type="checkbox" checked={data.highlightCampaign} onChange={(e) => update("highlightCampaign", e.target.checked)} />
@@ -343,8 +454,13 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
         </div>
 
         <div className="card">
-          <h3>Impostos + Marketing</h3>
-          <p>{money(result.taxValue + result.highlightValue + result.aceleraValue)}</p>
+          <h3>Marketing</h3>
+          <p>{money(result.marketingValue)}</p>
+        </div>
+
+        <div className="card">
+          <h3>Impostos</h3>
+          <p>{money(result.taxValue)}</p>
         </div>
       </div>
 
@@ -357,8 +473,11 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
             <tr><td>Custo da Embalagem</td><td>{money(packaging)}</td></tr>
             <tr><td>Comissão {data.marketplace} ({result.rule.percent}%)</td><td>{money(result.marketplaceFee)}</td></tr>
             <tr><td>Taxa Fixa</td><td>{money(result.rule.fixed)}</td></tr>
-            <tr><td>Impostos</td><td>{money(result.taxValue)}</td></tr>
-            <tr><td>Marketing / Campanhas</td><td>{money(result.highlightValue + result.aceleraValue)}</td></tr>
+            <tr><td>Impostos ({taxPercent}%)</td><td>{money(result.taxValue)}</td></tr>
+            <tr><td>Frete Grátis Shopee</td><td>{money(result.freeShippingValue)}</td></tr>
+            <tr><td>Shopee Vídeo</td><td>{money(result.shopeeVideoValue)}</td></tr>
+            <tr><td>Afiliados</td><td>{money(result.affiliateValue)}</td></tr>
+            <tr><td>Campanhas / Acelera</td><td>{money(result.highlightValue + result.aceleraValue)}</td></tr>
             <tr><td>Devolução Fácil</td><td>{money(easyReturnValue)}</td></tr>
             <tr><th>Total de Custos + Taxas</th><th>{money(result.totalCostAndFees)}</th></tr>
             <tr><th>Lucro Líquido</th><th>{money(result.profit)}</th></tr>
@@ -367,16 +486,29 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
       </div>
 
       <div className="box">
-        <h2>Distribuição de Custos</h2>
+        <h2>Comparar Marketplaces</h2>
 
-        <div className="distribution-list">
-          <p>Custo Produto: {percentPart(cost).toFixed(1)}%</p>
-          <p>Embalagem: {percentPart(packaging).toFixed(1)}%</p>
-          <p>Comissão: {percentPart(result.marketplaceFee).toFixed(1)}%</p>
-          <p>Taxa Fixa: {percentPart(result.rule.fixed).toFixed(1)}%</p>
-          <p>Impostos: {percentPart(result.taxValue).toFixed(1)}%</p>
-          <p>Lucro Líquido: {percentPart(Math.max(result.profit, 0)).toFixed(1)}%</p>
-        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Marketplace</th>
+              <th>Preço Ideal</th>
+              <th>Lucro</th>
+              <th>Margem</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {comparisons.map((item) => (
+              <tr key={item.marketplace}>
+                <td>{item.marketplace}</td>
+                <td>{money(item.price)}</td>
+                <td>{money(item.profit)}</td>
+                <td>{item.margin.toFixed(1)}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {estimatedSales > 0 && (
@@ -432,7 +564,7 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
 
       <div className="box">
         <h2>Compartilhar Resultado</h2>
-        <p>Copie o resumo completo para enviar no WhatsApp ou salvar em outro lugar.</p>
+        <p>Copie o resumo completo para enviar no WhatsApp ou salvar.</p>
         <button type="button" onClick={copySummary}>Copiar resumo completo</button>
       </div>
     </div>
