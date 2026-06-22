@@ -3,19 +3,40 @@ export default function DashboardCards({ dashboard }) {
     <div className="cards">
 
       <div className="card">
-        <strong>Produtos</strong>
-        <span>{dashboard.total_products || 0}</span>
-      </div>
+  <span>💰</span>
+  <strong>Faturamento estimado</strong>
+  <p>R$ {dashboard.total_revenue || 0}</p>
+</div>
 
-      <div className="card">
-        <strong>Estoque</strong>
-        <span>R$ {dashboard.total_stock_value || 0}</span>
-      </div>
+<div className="card">
+  <span>📈</span>
+  <strong>Lucro estimado</strong>
+  <p>R$ {dashboard.total_profit || 0}</p>
+</div>
 
-      <div className="card">
-        <strong>Despesas</strong>
-        <span>R$ {dashboard.monthly_expenses || 0}</span>
-      </div>
+<div className="card">
+  <span>📊</span>
+  <strong>Margem média</strong>
+  <p>{dashboard.margin || 0}%</p>
+</div>
+
+<div className="card">
+  <span>📦</span>
+  <strong>Produtos cadastrados</strong>
+  <p>{dashboard.total_products || 0}</p>
+</div>
+
+<div className="card">
+  <span>🧮</span>
+  <strong>Precificações</strong>
+  <p>{dashboard.total_pricings || 0}</p>
+</div>
+
+<div className="card">
+  <span>🏆</span>
+  <strong>Produto mais lucrativo</strong>
+  <p>{dashboard.best_product || "Sem dados"}</p>
+</div>
 
     </div>
   );
