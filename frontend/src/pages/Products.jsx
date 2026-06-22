@@ -2,10 +2,7 @@ import { useEffect, useState } from "react";
 import API from "../services/api";
 
 export default function Products() {
-  const [products, setProducts] = useState([]);
-  const [search, setSearch] = useState("");
-
-  const [form, setForm] = useState({
+  const emptyForm = {
     sku: "",
     name: "",
     description: "",
@@ -18,7 +15,12 @@ export default function Products() {
     stock: "",
     minimum_stock: "",
     marketplace: "Shopee"
-  });
+  };
+
+  const [products, setProducts] = useState([]);
+  const [search, setSearch] = useState("");
+  const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState(null);
 
   useEffect(() => {
     loadProducts();
@@ -29,10 +31,10 @@ export default function Products() {
     setProducts(response.data);
   }
 
-  async function createProduct(e) {
+  async function saveProduct(e) {
     e.preventDefault();
 
-    await API.post("/products", {
+    const data = {
       sku: form.sku,
       name: form.name,
       description: form.description,
@@ -45,28 +47,48 @@ export default function Products() {
       stock: Number(form.stock),
       minimum_stock: Number(form.minimum_stock),
       marketplace: form.marketplace
-    });
+    };
+
+    if (editingId) {
+      await API.put("/products/" + editingId, data);
+    } else {
+      await API.post("/products", data);
+    }
+
+    setForm(emptyForm);
+    setEditingId(null);
+    loadProducts();
+  }
+
+  function editProduct(product) {
+    setEditingId(product.id);
 
     setForm({
-      sku: "",
-      name: "",
-      description: "",
-      category: "",
-      supplier: "",
-      barcode: "",
-      image_url: "",
-      cost: "",
-      sale_price: "",
-      stock: "",
-      minimum_stock: "",
-      marketplace: "Shopee"
+      sku: product.sku || "",
+      name: product.name || "",
+      description: product.description || "",
+      category: product.category || "",
+      supplier: product.supplier || "",
+      barcode: product.barcode || "",
+      image_url: product.image_url || "",
+      cost: product.cost || "",
+      sale_price: product.sale_price || "",
+      stock: product.stock || "",
+      minimum_stock: product.minimum_stock || "",
+      marketplace: product.marketplace || "Shopee"
     });
 
-    loadProducts();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm(emptyForm);
   }
 
   async function deleteProduct(id) {
     if (!window.confirm("Deseja excluir este produto?")) return;
+
     await API.delete("/products/" + id);
     loadProducts();
   }
@@ -88,9 +110,9 @@ export default function Products() {
       <h1>Produtos</h1>
 
       <div className="box">
-        <h2>Cadastrar produto</h2>
+        <h2>{editingId ? "Editar produto" : "Cadastrar produto"}</h2>
 
-        <form onSubmit={createProduct} className="form-grid">
+        <form onSubmit={saveProduct} className="form-grid">
           <input placeholder="SKU" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
           <input placeholder="Nome do produto" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <input placeholder="Descrição" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
@@ -111,7 +133,15 @@ export default function Products() {
             <option>TikTok Shop</option>
           </select>
 
-          <button type="submit">Cadastrar produto</button>
+          <button type="submit">
+            {editingId ? "Salvar alteração" : "Cadastrar produto"}
+          </button>
+
+          {editingId && (
+            <button type="button" className="secondary" onClick={cancelEdit}>
+              Cancelar edição
+            </button>
+          )}
         </form>
       </div>
 
@@ -168,7 +198,11 @@ export default function Products() {
                   </td>
                   <td>{product.marketplace}</td>
                   <td>
-                    <button className="danger" onClick={() => deleteProduct(product.id)}>
+                    <button type="button" onClick={() => editProduct(product)}>
+                      Editar
+                    </button>
+
+                    <button type="button" className="danger" onClick={() => deleteProduct(product.id)}>
                       Excluir
                     </button>
                   </td>
