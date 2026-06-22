@@ -4,19 +4,15 @@ export default function Pricing() {
   const [data, setData] = useState({
     sellerType: "CNPJ",
     marketplace: "Shopee",
-
     cost: "",
     packaging: "",
-
     calculationMode: "margin",
     desiredMargin: 30,
     salePrice: "",
     desiredProfitValue: "",
-
     taxPercent: 1.5,
     marketAveragePrice: "",
     estimatedSales: "",
-
     discountPercent: "",
     couponType: "percent",
     couponValue: "",
@@ -33,47 +29,34 @@ export default function Pricing() {
     return Number(value) || 0;
   }
 
+  function money(value) {
+    return `R$ ${Number(value || 0).toFixed(2)}`;
+  }
+
   function getMarketplaceRule(marketplace, price) {
     if (marketplace === "Shopee") {
       let fixed = 4;
-
       if (price >= 200) fixed = 26;
       else if (price >= 100) fixed = 20;
       else if (price >= 80) fixed = 16;
       else if (price >= 50) fixed = 12;
       else if (price >= 30) fixed = 8;
-
-      return {
-        percent: 14,
-        fixed
-      };
+      return { percent: 14, fixed };
     }
 
     if (marketplace === "Mercado Livre") {
-      return {
-        percent: 17,
-        fixed: price < 79 ? 6.75 : 0
-      };
+      return { percent: 17, fixed: price < 79 ? 6.75 : 0 };
     }
 
     if (marketplace === "TikTok Shop") {
-      return {
-        percent: 6,
-        fixed: price < 79 ? 2 : 0
-      };
+      return { percent: 6, fixed: price < 79 ? 2 : 0 };
     }
 
     if (marketplace === "Amazon") {
-      return {
-        percent: 16,
-        fixed: 0
-      };
+      return { percent: 16, fixed: 0 };
     }
 
-    return {
-      percent: 16,
-      fixed: 0
-    };
+    return { percent: 16, fixed: 0 };
   }
 
   const cost = num(data.cost);
@@ -96,7 +79,6 @@ export default function Pricing() {
         : afterDiscount - couponValue;
 
     const rule = getMarketplaceRule(data.marketplace, finalPrice);
-
     const marketplaceFee = afterCoupon * (rule.percent / 100);
     const taxValue = afterCoupon * (taxPercent / 100);
     const highlightValue = afterCoupon * (highlightPercent / 100);
@@ -130,9 +112,7 @@ export default function Pricing() {
   }
 
   function calculateSuggestedPrice() {
-    if (data.calculationMode === "salePrice") {
-      return num(data.salePrice);
-    }
+    if (data.calculationMode === "salePrice") return num(data.salePrice);
 
     let estimatedPrice = productCost * 2 || 1;
 
@@ -153,14 +133,10 @@ export default function Pricing() {
           (productCost + fixedCosts + num(data.desiredProfitValue)) /
           (1 - (rule.percent + taxPercent + highlightPercent + aceleraPercent) / 100);
       } else {
-        estimatedPrice =
-          (productCost + fixedCosts) /
-          (1 - totalPercent / 100);
+        estimatedPrice = (productCost + fixedCosts) / (1 - totalPercent / 100);
       }
 
-      if (discountPercent > 0) {
-        estimatedPrice = estimatedPrice / (1 - discountPercent / 100);
-      }
+      if (discountPercent > 0) estimatedPrice = estimatedPrice / (1 - discountPercent / 100);
 
       if (couponValue > 0) {
         estimatedPrice =
@@ -175,6 +151,70 @@ export default function Pricing() {
 
   const suggestedPrice = calculateSuggestedPrice();
   const result = calculateByPrice(suggestedPrice);
+
+  const estimatedSales = num(data.estimatedSales);
+  const monthlyRevenue = result.finalPrice * estimatedSales;
+  const monthlyCosts = result.totalCostAndFees * estimatedSales;
+  const monthlyProfit = result.profit * estimatedSales;
+  const monthlyMargin = monthlyRevenue > 0 ? (monthlyProfit / monthlyRevenue) * 100 : 0;
+
+  const yearlyRevenue = monthlyRevenue * 12;
+  const yearlyCosts = monthlyCosts * 12;
+  const yearlyProfit = monthlyProfit * 12;
+
+  const distributionTotal =
+    cost +
+    packaging +
+    result.marketplaceFee +
+    result.rule.fixed +
+    result.taxValue +
+    Math.max(result.profit, 0);
+
+  function percentPart(value) {
+    if (distributionTotal <= 0) return 0;
+    return (value / distributionTotal) * 100;
+  }
+
+  function copySummary() {
+    const text = `
+📊 RESUMO DE PRECIFICAÇÃO
+
+Marketplace: ${data.marketplace}
+Tipo de vendedor: ${data.sellerType}
+
+💰 Preço sugerido: ${money(result.finalPrice)}
+✅ Lucro líquido: ${money(result.profit)}
+📈 Margem real: ${result.margin.toFixed(1)}%
+
+📦 Custos:
+Produto: ${money(cost)}
+Embalagem: ${money(packaging)}
+
+🏪 Taxas:
+Comissão ${data.marketplace}: ${money(result.marketplaceFee)}
+Taxa fixa: ${money(result.rule.fixed)}
+Impostos: ${money(result.taxValue)}
+Marketing: ${money(result.highlightValue + result.aceleraValue)}
+Devolução Fácil: ${money(easyReturnValue)}
+
+📌 Total custos + taxas: ${money(result.totalCostAndFees)}
+
+${estimatedSales > 0 ? `📈 PROJEÇÃO MENSAL
+Vendas/mês: ${estimatedSales}
+Receita bruta: ${money(monthlyRevenue)}
+Custos totais: ${money(monthlyCosts)}
+Lucro líquido: ${money(monthlyProfit)}
+Margem mensal: ${monthlyMargin.toFixed(1)}%
+
+📅 PROJEÇÃO ANUAL
+Receita anual: ${money(yearlyRevenue)}
+Custos anuais: ${money(yearlyCosts)}
+Lucro anual: ${money(yearlyProfit)}` : ""}
+    `.trim();
+
+    navigator.clipboard.writeText(text);
+    alert("Resumo copiado para compartilhar!");
+  }
 
   return (
     <div className="page">
@@ -205,17 +245,9 @@ export default function Pricing() {
         <h2>Como calcular o preço?</h2>
 
         <div className="pricing-options">
-          <button onClick={() => update("calculationMode", "margin")}>
-            Margem de Lucro %
-          </button>
-
-          <button onClick={() => update("calculationMode", "salePrice")}>
-            Preço de Venda
-          </button>
-
-          <button onClick={() => update("calculationMode", "profitValue")}>
-            Lucro Desejado R$
-          </button>
+          <button type="button" onClick={() => update("calculationMode", "margin")}>Margem de Lucro %</button>
+          <button type="button" onClick={() => update("calculationMode", "salePrice")}>Preço de Venda</button>
+          <button type="button" onClick={() => update("calculationMode", "profitValue")}>Lucro Desejado R$</button>
         </div>
 
         <div className="form-grid">
@@ -275,20 +307,26 @@ export default function Pricing() {
         </label>
       </div>
 
+      <div className="result-highlight">
+        <h2>Preço Sugerido</h2>
+        <strong>{money(result.finalPrice)}</strong>
+        <span>Lucro Real: {money(result.profit)} ({result.margin.toFixed(1)}%)</span>
+      </div>
+
       <div className="cards">
         <div className="card">
-          <h3>Preço sugerido</h3>
-          <p>R$ {result.finalPrice.toFixed(2)}</p>
+          <h3>Custo Total + Taxas</h3>
+          <p>{money(result.totalCostAndFees)}</p>
         </div>
 
         <div className="card">
-          <h3>Lucro real</h3>
-          <p>R$ {result.profit.toFixed(2)}</p>
+          <h3>Taxas Marketplace</h3>
+          <p>{money(result.marketplaceFee + result.rule.fixed)}</p>
         </div>
 
         <div className="card">
-          <h3>Margem real</h3>
-          <p>{result.margin.toFixed(2)}%</p>
+          <h3>Impostos + Marketing</h3>
+          <p>{money(result.taxValue + result.highlightValue + result.aceleraValue)}</p>
         </div>
       </div>
 
@@ -297,52 +335,87 @@ export default function Pricing() {
 
         <table>
           <tbody>
-            <tr>
-              <td>Custo do Produto</td>
-              <td>R$ {cost.toFixed(2)}</td>
-            </tr>
-
-            <tr>
-              <td>Custo da Embalagem</td>
-              <td>R$ {packaging.toFixed(2)}</td>
-            </tr>
-
-            <tr>
-              <td>Comissão {data.marketplace} ({result.rule.percent}%)</td>
-              <td>R$ {result.marketplaceFee.toFixed(2)}</td>
-            </tr>
-
-            <tr>
-              <td>Taxa Fixa</td>
-              <td>R$ {result.rule.fixed.toFixed(2)}</td>
-            </tr>
-
-            <tr>
-              <td>Impostos</td>
-              <td>R$ {result.taxValue.toFixed(2)}</td>
-            </tr>
-
-            <tr>
-              <td>Marketing / Campanhas</td>
-              <td>R$ {(result.highlightValue + result.aceleraValue).toFixed(2)}</td>
-            </tr>
-
-            <tr>
-              <td>Devolução Fácil</td>
-              <td>R$ {easyReturnValue.toFixed(2)}</td>
-            </tr>
-
-            <tr>
-              <th>Total de Custos + Taxas</th>
-              <th>R$ {result.totalCostAndFees.toFixed(2)}</th>
-            </tr>
-
-            <tr>
-              <th>Lucro Líquido</th>
-              <th>R$ {result.profit.toFixed(2)}</th>
-            </tr>
+            <tr><td>Custo do Produto</td><td>{money(cost)}</td></tr>
+            <tr><td>Custo da Embalagem</td><td>{money(packaging)}</td></tr>
+            <tr><td>Comissão {data.marketplace} ({result.rule.percent}%)</td><td>{money(result.marketplaceFee)}</td></tr>
+            <tr><td>Taxa Fixa</td><td>{money(result.rule.fixed)}</td></tr>
+            <tr><td>Impostos</td><td>{money(result.taxValue)}</td></tr>
+            <tr><td>Marketing / Campanhas</td><td>{money(result.highlightValue + result.aceleraValue)}</td></tr>
+            <tr><td>Devolução Fácil</td><td>{money(easyReturnValue)}</td></tr>
+            <tr><th>Total de Custos + Taxas</th><th>{money(result.totalCostAndFees)}</th></tr>
+            <tr><th>Lucro Líquido</th><th>{money(result.profit)}</th></tr>
           </tbody>
         </table>
+      </div>
+
+      <div className="box">
+        <h2>Distribuição de Custos</h2>
+
+        <div className="distribution-list">
+          <p>Custo Produto: {percentPart(cost).toFixed(1)}%</p>
+          <p>Embalagem: {percentPart(packaging).toFixed(1)}%</p>
+          <p>Comissão: {percentPart(result.marketplaceFee).toFixed(1)}%</p>
+          <p>Taxa Fixa: {percentPart(result.rule.fixed).toFixed(1)}%</p>
+          <p>Impostos: {percentPart(result.taxValue).toFixed(1)}%</p>
+          <p>Lucro Líquido: {percentPart(Math.max(result.profit, 0)).toFixed(1)}%</p>
+        </div>
+      </div>
+
+      {estimatedSales > 0 && (
+        <div className="box">
+          <h2>Projeção Mensal</h2>
+
+          <div className="cards">
+            <div className="card">
+              <h3>Receita Bruta</h3>
+              <p>{money(monthlyRevenue)}</p>
+            </div>
+
+            <div className="card">
+              <h3>Custos Totais</h3>
+              <p>{money(monthlyCosts)}</p>
+            </div>
+
+            <div className="card">
+              <h3>Lucro Líquido</h3>
+              <p>{money(monthlyProfit)}</p>
+            </div>
+
+            <div className="card">
+              <h3>Margem Mensal</h3>
+              <p>{monthlyMargin.toFixed(1)}%</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {estimatedSales > 0 && (
+        <div className="box">
+          <h2>Projeção Anual</h2>
+
+          <div className="cards">
+            <div className="card">
+              <h3>Receita Anual</h3>
+              <p>{money(yearlyRevenue)}</p>
+            </div>
+
+            <div className="card">
+              <h3>Custos Anuais</h3>
+              <p>{money(yearlyCosts)}</p>
+            </div>
+
+            <div className="card">
+              <h3>Lucro Anual</h3>
+              <p>{money(yearlyProfit)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="box">
+        <h2>Compartilhar Resultado</h2>
+        <p>Copie o resumo completo para enviar no WhatsApp ou salvar em outro lugar.</p>
+        <button type="button" onClick={copySummary}>Copiar resumo completo</button>
       </div>
     </div>
   );
