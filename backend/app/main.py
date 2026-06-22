@@ -3,6 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from app.models import PricingHistory
 from app.schemas import PricingHistoryCreate
+import csv
+import io
+from fastapi import UploadFile, File
+from app.models import Product
 
 from .database import Base, engine, get_db
 from . import models, schemas
@@ -216,3 +220,50 @@ def get_pricing_history(db: Session = Depends(get_db)):
         .limit(100)
         .all()
     )
+@app.post("/import-shopee-products")
+async def import_shopee_products(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    content = await file.read()
+    text = content.decode("utf-8-sig")
+    reader = csv.DictReader(io.StringIO(text))
+
+    imported = 0
+
+    for row in reader:
+        sku = row.get("et_title_variation_sku", "") or row.get("et_title_reference_sku", "")
+        name = row.get("et_title_product_name", "")
+        price = row.get("et_title_variation_price", 0) or 0
+        stock = row.get("et_title_variation_stock", 0) or 0
+
+        if not name:
+            continue
+
+        existing = db.query(Product).filter(Product.sku == sku).first()
+
+        if existing:
+            existing.name = name
+            existing.sale_price = float(price or 0)
+            existing.stock = int(float(stock or 0))
+            existing.marketplace = "Shopee"
+        else:
+            product = Product(
+                sku=sku,
+                name=name,
+                sale_price=float(price or 0),
+                stock=int(float(stock or 0)),
+                marketplace="Shopee",
+                minimum_stock=10
+            )
+
+            db.add(product)
+
+        imported += 1
+
+    db.commit()
+
+    return {
+        "message": "Produtos importados com sucesso",
+        "imported": imported
+    }
