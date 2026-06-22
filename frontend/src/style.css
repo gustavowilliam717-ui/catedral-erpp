@@ -233,4 +233,62 @@ td {
   .pricing-options {
     grid-template-columns: 1fr;
   }
+  
+  .dashboard-hero {
+  background: linear-gradient(135deg, #071a35, #1e40af);
+  color: white;
+  padding: 30px;
+  border-radius: 22px;
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+}
+
+.dashboard-hero h2 {
+  font-size: 30px;
+  margin-bottom: 8px;
+}
+
+.hero-number {
+  font-size: 34px;
+  font-weight: bold;
+  text-align: right;
+}
+
+.hero-number span {
+  display: block;
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  margin-bottom: 22px;
+}
+
+.chart-box {
+  min-height: 360px;
+}
+
+.quick-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .dashboard-hero,
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    text-align: left;
+  }
+
+  .hero-number {
+    text-align: left;
+  }
 }
