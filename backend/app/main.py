@@ -158,3 +158,28 @@ def simulate_price(data: schemas.PriceSimulation):
         "desired_profit_value": round(profit_value, 2),
         "total_percent_used": round(total_percent, 2),
     }
+@app.post("/revenues")
+def create_revenue(revenue: schemas.RevenueCreate, db: Session = Depends(get_db)):
+    db_revenue = models.Revenue(**revenue.model_dump())
+    db.add(db_revenue)
+    db.commit()
+    db.refresh(db_revenue)
+    return db_revenue
+
+
+@app.get("/revenues")
+def list_revenues(db: Session = Depends(get_db)):
+    return db.query(models.Revenue).all()
+
+
+@app.delete("/revenues/{revenue_id}")
+def delete_revenue(revenue_id: int, db: Session = Depends(get_db)):
+    db_revenue = db.query(models.Revenue).filter(models.Revenue.id == revenue_id).first()
+
+    if not db_revenue:
+        raise HTTPException(status_code=404, detail="Receita não encontrada")
+
+    db.delete(db_revenue)
+    db.commit()
+
+    return {"message": "Receita excluída com sucesso"}
