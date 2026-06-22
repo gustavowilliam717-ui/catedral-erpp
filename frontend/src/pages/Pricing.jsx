@@ -333,7 +333,22 @@ Devolução Fácil: ${money(easyReturnValue)}
 
     navigator.clipboard.writeText(text);
     alert("Resumo copiado!");
-  }
+    
+  async function savePricingHistory() {
+  const product = products.find((item) => String(item.id) === String(selectedProduct));
+
+  await API.post("/pricing-history", {
+    product_id: selectedProduct ? Number(selectedProduct) : 0,
+    sku: product?.sku || "",
+    product_name: product?.name || "Produto sem nome",
+    marketplace: data.marketplace,
+    suggested_price: Number(result.finalPrice),
+    profit: Number(result.profit),
+    margin: Number(result.margin)
+  });
+
+  alert("Precificação salva no histórico!");
+}
 
   return (
     <div className="page">
@@ -594,7 +609,14 @@ Devolução Fácil: ${money(easyReturnValue)}
           </div>
         </div>
       )}
+<div className="box">
+  <h2>Salvar Precificação</h2>
+  <p>Guarde este cálculo para consultar depois no histórico.</p>
 
+  <button type="button" onClick={savePricingHistory}>
+    Salvar precificação
+  </button>
+</div>
       <div className="box">
         <h2>Compartilhar Resultado</h2>
         <button type="button" onClick={copySummary}>Copiar resumo completo</button>
