@@ -10,14 +10,21 @@ export default function Pricing() {
     cost: "",
     packaging: "",
 
+    consumable1Name: "Bolha",
+    consumable1Value: "",
+    consumable2Name: "Caixa",
+    consumable2Value: "",
+    consumable3Name: "Parafusos",
+    consumable3Value: "",
+    consumable4Name: "Tinta",
+    consumable4Value: "",
+
     calculationMode: "margin",
     desiredMargin: 30,
     salePrice: "",
     desiredProfitValue: "",
 
-    marketAveragePrice: "",
     estimatedSales: "",
-
     discountPercent: "",
     couponType: "percent",
     couponValue: "",
@@ -26,6 +33,7 @@ export default function Pricing() {
     shopeeVideo: false,
     affiliateCommission: false,
     affiliatePercent: 5,
+    adsPercent: "",
     highlightCampaign: false,
     shopeeAcelera: "0",
     easyReturn: false
@@ -48,27 +56,21 @@ export default function Pricing() {
     if (data.taxRegime === "Simples Nacional") return 1.5;
     if (data.taxRegime === "Lucro Presumido") return 5;
     if (data.taxRegime === "Lucro Real") return 8;
-    return 0;
+    return 1.5;
   }
 
   function getMarketplaceRule(marketplace, price) {
     if (marketplace === "Shopee") {
-      const percent = data.sellerType === "CPF" ? 14 : 14;
-      const fixed = data.sellerType === "CPF" ? 7 : 4;
-
       return {
-        percent,
-        fixed
+        percent: 14,
+        fixed: data.sellerType === "CPF" ? 7 : getShopeeFixedFee(price)
       };
     }
 
     if (marketplace === "Mercado Livre") {
-      const percent = data.mlAdType === "Premium" ? 17 : 12;
-      const fixed = price < 79 ? 6.75 : 0;
-
       return {
-        percent,
-        fixed
+        percent: data.mlAdType === "Premium" ? 17 : 12,
+        fixed: price < 79 ? 6.75 : 0
       };
     }
 
@@ -92,9 +94,25 @@ export default function Pricing() {
     };
   }
 
+  function getShopeeFixedFee(price) {
+    if (price >= 200) return 26;
+    if (price >= 100) return 20;
+    if (price >= 80) return 16;
+    if (price >= 50) return 12;
+    if (price >= 30) return 8;
+    return 4;
+  }
+
   const cost = num(data.cost);
   const packaging = num(data.packaging);
-  const productCost = cost + packaging;
+
+  const consumables =
+    num(data.consumable1Value) +
+    num(data.consumable2Value) +
+    num(data.consumable3Value) +
+    num(data.consumable4Value);
+
+  const productCost = cost + packaging + consumables;
 
   const taxPercent = getTaxPercent();
   const discountPercent = num(data.discountPercent);
@@ -111,6 +129,7 @@ export default function Pricing() {
       ? num(data.affiliatePercent)
       : 0;
 
+  const adsPercent = num(data.adsPercent);
   const highlightPercent = data.highlightCampaign ? 3.5 : 0;
   const aceleraPercent = num(data.shopeeAcelera);
   const easyReturnValue = data.easyReturn ? 0.49 : 0;
@@ -130,6 +149,7 @@ export default function Pricing() {
     const freeShippingValue = afterCoupon * (freeShippingPercent / 100);
     const shopeeVideoValue = afterCoupon * (shopeeVideoPercent / 100);
     const affiliateValue = afterCoupon * (affiliatePercent / 100);
+    const adsValue = afterCoupon * (adsPercent / 100);
     const highlightValue = afterCoupon * (highlightPercent / 100);
     const aceleraValue = afterCoupon * (aceleraPercent / 100);
 
@@ -137,6 +157,7 @@ export default function Pricing() {
       freeShippingValue +
       shopeeVideoValue +
       affiliateValue +
+      adsValue +
       highlightValue +
       aceleraValue;
 
@@ -151,6 +172,18 @@ export default function Pricing() {
     const profit = afterCoupon - totalCostAndFees;
     const margin = afterCoupon > 0 ? (profit / afterCoupon) * 100 : 0;
 
+    const totalPercentual =
+      rule.percent +
+      taxPercent +
+      freeShippingPercent +
+      shopeeVideoPercent +
+      affiliatePercent +
+      adsPercent +
+      highlightPercent +
+      aceleraPercent;
+
+    const totalFixed = rule.fixed + easyReturnValue;
+
     return {
       finalPrice,
       afterCoupon,
@@ -160,13 +193,16 @@ export default function Pricing() {
       freeShippingValue,
       shopeeVideoValue,
       affiliateValue,
+      adsValue,
       highlightValue,
       aceleraValue,
       marketingValue,
       totalFees,
       totalCostAndFees,
       profit,
-      margin
+      margin,
+      totalPercentual,
+      totalFixed
     };
   }
 
@@ -180,32 +216,26 @@ export default function Pricing() {
     for (let i = 0; i < 30; i++) {
       const rule = getMarketplaceRule(marketplace, estimatedPrice);
 
-      const totalPercent =
+      const percentWithoutProfit =
         rule.percent +
         taxPercent +
         freeShippingPercent +
         shopeeVideoPercent +
         affiliatePercent +
+        adsPercent +
         highlightPercent +
-        aceleraPercent +
-        num(data.desiredMargin);
+        aceleraPercent;
 
       const fixedCosts = rule.fixed + easyReturnValue;
 
       if (data.calculationMode === "profitValue") {
         estimatedPrice =
           (productCost + fixedCosts + num(data.desiredProfitValue)) /
-          (1 -
-            (rule.percent +
-              taxPercent +
-              freeShippingPercent +
-              shopeeVideoPercent +
-              affiliatePercent +
-              highlightPercent +
-              aceleraPercent) /
-              100);
+          (1 - percentWithoutProfit / 100);
       } else {
-        estimatedPrice = (productCost + fixedCosts) / (1 - totalPercent / 100);
+        estimatedPrice =
+          (productCost + fixedCosts) /
+          (1 - (percentWithoutProfit + num(data.desiredMargin)) / 100);
       }
 
       if (discountPercent > 0) {
@@ -260,15 +290,19 @@ export default function Pricing() {
 📊 RESUMO DE PRECIFICAÇÃO
 
 Marketplace: ${data.marketplace}
-Tipo de vendedor: ${data.sellerType}
+Vendedor: ${data.sellerType}
 
 💰 Preço sugerido: ${money(result.finalPrice)}
 ✅ Lucro líquido: ${money(result.profit)}
 📈 Margem real: ${result.margin.toFixed(1)}%
 
+🔵 Custo efetivo:
+${result.totalPercentual.toFixed(1)}% + ${money(result.totalFixed)}
+
 📦 Custos:
 Produto: ${money(cost)}
 Embalagem: ${money(packaging)}
+Consumíveis: ${money(consumables)}
 
 🏪 Taxas:
 Comissão: ${money(result.marketplaceFee)}
@@ -281,15 +315,15 @@ Devolução Fácil: ${money(easyReturnValue)}
 
 ${estimatedSales > 0 ? `📈 PROJEÇÃO MENSAL
 Vendas/mês: ${estimatedSales}
-Receita bruta: ${money(monthlyRevenue)}
-Custos totais: ${money(monthlyCosts)}
-Lucro líquido: ${money(monthlyProfit)}
-Margem mensal: ${monthlyMargin.toFixed(1)}%
+Receita: ${money(monthlyRevenue)}
+Custos: ${money(monthlyCosts)}
+Lucro: ${money(monthlyProfit)}
+Margem: ${monthlyMargin.toFixed(1)}%
 
 📅 PROJEÇÃO ANUAL
-Receita anual: ${money(yearlyRevenue)}
-Custos anuais: ${money(yearlyCosts)}
-Lucro anual: ${money(yearlyProfit)}` : ""}
+Receita: ${money(yearlyRevenue)}
+Custos: ${money(yearlyCosts)}
+Lucro: ${money(yearlyProfit)}` : ""}
     `.trim();
 
     navigator.clipboard.writeText(text);
@@ -328,7 +362,6 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
             <option>Simples Nacional</option>
             <option>Lucro Presumido</option>
             <option>Lucro Real</option>
-            <option>Outro</option>
           </select>
 
           <input placeholder="Custo do produto" value={data.cost} onChange={(e) => update("cost", e.target.value)} />
@@ -337,20 +370,30 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
       </div>
 
       <div className="box">
+        <h2>Consumíveis</h2>
+
+        <div className="form-grid">
+          <input value={data.consumable1Name} onChange={(e) => update("consumable1Name", e.target.value)} />
+          <input placeholder="Valor" value={data.consumable1Value} onChange={(e) => update("consumable1Value", e.target.value)} />
+
+          <input value={data.consumable2Name} onChange={(e) => update("consumable2Name", e.target.value)} />
+          <input placeholder="Valor" value={data.consumable2Value} onChange={(e) => update("consumable2Value", e.target.value)} />
+
+          <input value={data.consumable3Name} onChange={(e) => update("consumable3Name", e.target.value)} />
+          <input placeholder="Valor" value={data.consumable3Value} onChange={(e) => update("consumable3Value", e.target.value)} />
+
+          <input value={data.consumable4Name} onChange={(e) => update("consumable4Name", e.target.value)} />
+          <input placeholder="Valor" value={data.consumable4Value} onChange={(e) => update("consumable4Value", e.target.value)} />
+        </div>
+      </div>
+
+      <div className="box">
         <h2>Como calcular o preço?</h2>
 
         <div className="pricing-options">
-          <button type="button" onClick={() => update("calculationMode", "margin")}>
-            Margem de Lucro %
-          </button>
-
-          <button type="button" onClick={() => update("calculationMode", "salePrice")}>
-            Preço de Venda
-          </button>
-
-          <button type="button" onClick={() => update("calculationMode", "profitValue")}>
-            Lucro Desejado R$
-          </button>
+          <button type="button" onClick={() => update("calculationMode", "margin")}>Margem de Lucro %</button>
+          <button type="button" onClick={() => update("calculationMode", "salePrice")}>Preço de Venda</button>
+          <button type="button" onClick={() => update("calculationMode", "profitValue")}>Lucro Desejado R$</button>
         </div>
 
         <div className="form-grid">
@@ -369,18 +412,10 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
       </div>
 
       <div className="box">
-        <h2>Outras Configurações</h2>
+        <h2>Marketing e Simulações</h2>
 
         <div className="form-grid">
-          <input placeholder="Preço médio do mercado" value={data.marketAveragePrice} onChange={(e) => update("marketAveragePrice", e.target.value)} />
           <input placeholder="Vendas estimadas por mês" value={data.estimatedSales} onChange={(e) => update("estimatedSales", e.target.value)} />
-        </div>
-      </div>
-
-      <div className="box">
-        <h2>Central de Marketing</h2>
-
-        <div className="form-grid">
           <input placeholder="Desconto %" value={data.discountPercent} onChange={(e) => update("discountPercent", e.target.value)} />
 
           <select value={data.couponType} onChange={(e) => update("couponType", e.target.value)}>
@@ -389,13 +424,7 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
           </select>
 
           <input placeholder="Valor do cupom" value={data.couponValue} onChange={(e) => update("couponValue", e.target.value)} />
-
-          <select value={data.shopeeAcelera} onChange={(e) => update("shopeeAcelera", e.target.value)}>
-            <option value="0">Não uso Shopee Acelera</option>
-            <option value="3">Shopee Acelera 3%</option>
-            <option value="5">Shopee Acelera 5%</option>
-            <option value="10">Shopee Acelera 10%</option>
-          </select>
+          <input placeholder="Shopee Ads %" value={data.adsPercent} onChange={(e) => update("adsPercent", e.target.value)} />
         </div>
 
         {data.marketplace === "Shopee" && (
@@ -416,12 +445,15 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
             </label>
 
             {data.affiliateCommission && (
-              <input
-                placeholder="Percentual afiliado %"
-                value={data.affiliatePercent}
-                onChange={(e) => update("affiliatePercent", e.target.value)}
-              />
+              <input placeholder="Percentual afiliado %" value={data.affiliatePercent} onChange={(e) => update("affiliatePercent", e.target.value)} />
             )}
+
+            <select value={data.shopeeAcelera} onChange={(e) => update("shopeeAcelera", e.target.value)}>
+              <option value="0">Não uso Shopee Acelera</option>
+              <option value="3">Shopee Acelera 3%</option>
+              <option value="5">Shopee Acelera 5%</option>
+              <option value="10">Shopee Acelera 10%</option>
+            </select>
           </>
         )}
 
@@ -444,6 +476,12 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
 
       <div className="cards">
         <div className="card">
+          <h3>Custo Efetivo da Venda</h3>
+          <p>{result.totalPercentual.toFixed(1)}%</p>
+          <small>+ {money(result.totalFixed)}</small>
+        </div>
+
+        <div className="card">
           <h3>Custo Total + Taxas</h3>
           <p>{money(result.totalCostAndFees)}</p>
         </div>
@@ -457,11 +495,21 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
           <h3>Marketing</h3>
           <p>{money(result.marketingValue)}</p>
         </div>
+      </div>
 
-        <div className="card">
-          <h3>Impostos</h3>
-          <p>{money(result.taxValue)}</p>
-        </div>
+      <div className="box">
+        <h2>🔒 Taxas Oficiais Aplicadas</h2>
+
+        <table>
+          <tbody>
+            <tr><td>Marketplace</td><td>{data.marketplace}</td></tr>
+            <tr><td>Tipo de vendedor</td><td>{data.sellerType}</td></tr>
+            <tr><td>Comissão base</td><td>{result.rule.percent}%</td></tr>
+            <tr><td>Imposto automático</td><td>{taxPercent}%</td></tr>
+            <tr><td>Taxa fixa automática</td><td>{money(result.rule.fixed)}</td></tr>
+            <tr><td>Devolução Fácil</td><td>{money(easyReturnValue)}</td></tr>
+          </tbody>
+        </table>
       </div>
 
       <div className="box">
@@ -469,18 +517,16 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
 
         <table>
           <tbody>
-            <tr><td>Custo do Produto</td><td>{money(cost)}</td></tr>
-            <tr><td>Custo da Embalagem</td><td>{money(packaging)}</td></tr>
-            <tr><td>Comissão {data.marketplace} ({result.rule.percent}%)</td><td>{money(result.marketplaceFee)}</td></tr>
-            <tr><td>Taxa Fixa</td><td>{money(result.rule.fixed)}</td></tr>
-            <tr><td>Impostos ({taxPercent}%)</td><td>{money(result.taxValue)}</td></tr>
-            <tr><td>Frete Grátis Shopee</td><td>{money(result.freeShippingValue)}</td></tr>
-            <tr><td>Shopee Vídeo</td><td>{money(result.shopeeVideoValue)}</td></tr>
-            <tr><td>Afiliados</td><td>{money(result.affiliateValue)}</td></tr>
-            <tr><td>Campanhas / Acelera</td><td>{money(result.highlightValue + result.aceleraValue)}</td></tr>
+            <tr><td>Custo Produto</td><td>{money(cost)}</td></tr>
+            <tr><td>Embalagem</td><td>{money(packaging)}</td></tr>
+            <tr><td>Consumíveis</td><td>{money(consumables)}</td></tr>
+            <tr><td>Comissão {data.marketplace}</td><td>{money(result.marketplaceFee)}</td></tr>
+            <tr><td>Taxa fixa</td><td>{money(result.rule.fixed)}</td></tr>
+            <tr><td>Impostos</td><td>{money(result.taxValue)}</td></tr>
+            <tr><td>Marketing</td><td>{money(result.marketingValue)}</td></tr>
             <tr><td>Devolução Fácil</td><td>{money(easyReturnValue)}</td></tr>
-            <tr><th>Total de Custos + Taxas</th><th>{money(result.totalCostAndFees)}</th></tr>
-            <tr><th>Lucro Líquido</th><th>{money(result.profit)}</th></tr>
+            <tr><th>Total custos + taxas</th><th>{money(result.totalCostAndFees)}</th></tr>
+            <tr><th>Lucro líquido</th><th>{money(result.profit)}</th></tr>
           </tbody>
         </table>
       </div>
@@ -516,25 +562,10 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
           <h2>Projeção Mensal</h2>
 
           <div className="cards">
-            <div className="card">
-              <h3>Receita Bruta</h3>
-              <p>{money(monthlyRevenue)}</p>
-            </div>
-
-            <div className="card">
-              <h3>Custos Totais</h3>
-              <p>{money(monthlyCosts)}</p>
-            </div>
-
-            <div className="card">
-              <h3>Lucro Líquido</h3>
-              <p>{money(monthlyProfit)}</p>
-            </div>
-
-            <div className="card">
-              <h3>Margem Mensal</h3>
-              <p>{monthlyMargin.toFixed(1)}%</p>
-            </div>
+            <div className="card"><h3>Receita</h3><p>{money(monthlyRevenue)}</p></div>
+            <div className="card"><h3>Custos</h3><p>{money(monthlyCosts)}</p></div>
+            <div className="card"><h3>Lucro</h3><p>{money(monthlyProfit)}</p></div>
+            <div className="card"><h3>Margem</h3><p>{monthlyMargin.toFixed(1)}%</p></div>
           </div>
         </div>
       )}
@@ -544,27 +575,15 @@ Lucro anual: ${money(yearlyProfit)}` : ""}
           <h2>Projeção Anual</h2>
 
           <div className="cards">
-            <div className="card">
-              <h3>Receita Anual</h3>
-              <p>{money(yearlyRevenue)}</p>
-            </div>
-
-            <div className="card">
-              <h3>Custos Anuais</h3>
-              <p>{money(yearlyCosts)}</p>
-            </div>
-
-            <div className="card">
-              <h3>Lucro Anual</h3>
-              <p>{money(yearlyProfit)}</p>
-            </div>
+            <div className="card"><h3>Receita anual</h3><p>{money(yearlyRevenue)}</p></div>
+            <div className="card"><h3>Custos anuais</h3><p>{money(yearlyCosts)}</p></div>
+            <div className="card"><h3>Lucro anual</h3><p>{money(yearlyProfit)}</p></div>
           </div>
         </div>
       )}
 
       <div className="box">
         <h2>Compartilhar Resultado</h2>
-        <p>Copie o resumo completo para enviar no WhatsApp ou salvar.</p>
         <button type="button" onClick={copySummary}>Copiar resumo completo</button>
       </div>
     </div>
