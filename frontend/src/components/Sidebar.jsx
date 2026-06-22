@@ -29,9 +29,13 @@ export default function Sidebar({ setPage }) {
       </button>
 
       <button onClick={() => setPage("stock")}>
-  📦 Estoque
-</button>
-
+        📦 Estoque
+      </button>
+      
+      <button onClick={() => setPage("importShopee")}>
+       📥 Importar Shopee
+       </button>
+      
       <small>FINANCEIRO</small>
 
       <button>
