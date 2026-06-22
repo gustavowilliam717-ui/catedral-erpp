@@ -1,6 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import API from "../services/api";
 
 export default function Pricing() {
+  const [products, setProducts] = useState([]);
+  const [selectedProduct, setSelectedProduct] = useState("");
+
   const [data, setData] = useState({
     sellerType: "CNPJ",
     marketplace: "Shopee",
@@ -36,8 +40,30 @@ export default function Pricing() {
     adsPercent: "",
     highlightCampaign: false,
     shopeeAcelera: "0",
-    easyReturn: false
+    easyReturn: false,
   });
+
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  async function loadProducts() {
+    const response = await API.get("/products");
+    setProducts(response.data);
+  }
+
+  function selectProduct(id) {
+    setSelectedProduct(id);
+
+    const product = products.find((item) => String(item.id) === String(id));
+    if (!product) return;
+
+    setData({
+      ...data,
+      cost: product.cost || "",
+      marketplace: product.marketplace || "Shopee",
+    });
+  }
 
   function update(field, value) {
     setData({ ...data, [field]: value });
@@ -64,34 +90,34 @@ export default function Pricing() {
     if (marketplace === "Shopee") {
       return {
         percent: 14,
-        fixed: data.sellerType === "CPF" ? 7 : getShopeeFixedFee(price)
+        fixed: data.sellerType === "CPF" ? 7 : getShopeeFixedFee(price),
       };
     }
 
     if (marketplace === "Mercado Livre") {
       return {
         percent: data.mlAdType === "Premium" ? 17 : 12,
-        fixed: price < 79 ? 6.75 : 0
+        fixed: price < 79 ? 6.75 : 0,
       };
     }
 
     if (marketplace === "TikTok Shop") {
       return {
         percent: 6,
-        fixed: price < 79 ? 2 : 0
+        fixed: price < 79 ? 2 : 0,
       };
     }
 
     if (marketplace === "Amazon") {
       return {
         percent: 16,
-        fixed: 0
+        fixed: 0,
       };
     }
 
     return {
       percent: 16,
-      fixed: 0
+      fixed: 0,
     };
   }
 
@@ -194,7 +220,7 @@ export default function Pricing() {
       profit,
       margin,
       totalPercentual,
-      totalFixed
+      totalFixed,
     };
   }
 
@@ -252,7 +278,8 @@ export default function Pricing() {
   const monthlyRevenue = result.finalPrice * estimatedSales;
   const monthlyCosts = result.totalCostAndFees * estimatedSales;
   const monthlyProfit = result.profit * estimatedSales;
-  const monthlyMargin = monthlyRevenue > 0 ? (monthlyProfit / monthlyRevenue) * 100 : 0;
+  const monthlyMargin =
+    monthlyRevenue > 0 ? (monthlyProfit / monthlyRevenue) * 100 : 0;
 
   const yearlyRevenue = monthlyRevenue * 12;
   const yearlyCosts = monthlyCosts * 12;
@@ -266,7 +293,7 @@ export default function Pricing() {
       marketplace,
       price,
       profit: calc.profit,
-      margin: calc.margin
+      margin: calc.margin,
     };
   }
 
@@ -274,7 +301,7 @@ export default function Pricing() {
     compareMarketplace("Shopee"),
     compareMarketplace("Mercado Livre"),
     compareMarketplace("TikTok Shop"),
-    compareMarketplace("Amazon")
+    compareMarketplace("Amazon"),
   ];
 
   function copySummary() {
@@ -302,20 +329,6 @@ Taxa fixa: ${money(result.rule.fixed)}
 Imposto: ${money(result.taxValue)}
 Marketing: ${money(result.marketingValue)}
 Devolução Fácil: ${money(easyReturnValue)}
-
-📌 Total custos + taxas: ${money(result.totalCostAndFees)}
-
-${estimatedSales > 0 ? `📈 PROJEÇÃO MENSAL
-Vendas/mês: ${estimatedSales}
-Receita: ${money(monthlyRevenue)}
-Custos: ${money(monthlyCosts)}
-Lucro: ${money(monthlyProfit)}
-Margem: ${monthlyMargin.toFixed(1)}%
-
-📅 PROJEÇÃO ANUAL
-Receita: ${money(yearlyRevenue)}
-Custos: ${money(yearlyCosts)}
-Lucro: ${money(yearlyProfit)}` : ""}
     `.trim();
 
     navigator.clipboard.writeText(text);
@@ -325,6 +338,20 @@ Lucro: ${money(yearlyProfit)}` : ""}
   return (
     <div className="page">
       <h1>Precificação</h1>
+
+      <div className="box">
+        <h2>Selecionar produto cadastrado</h2>
+
+        <select value={selectedProduct} onChange={(e) => selectProduct(e.target.value)}>
+          <option value="">Escolha um produto cadastrado</option>
+
+          {products.map((product) => (
+            <option key={product.id} value={product.id}>
+              {product.sku} - {product.name}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <div className="box">
         <h2>Dados do Produto</h2>
@@ -349,12 +376,7 @@ Lucro: ${money(yearlyProfit)}` : ""}
             </select>
           )}
 
-          <input
-            placeholder="Imposto (%)"
-            value={data.taxPercent}
-            onChange={(e) => update("taxPercent", e.target.value)}
-          />
-
+          <input placeholder="Imposto (%)" value={data.taxPercent} onChange={(e) => update("taxPercent", e.target.value)} />
           <input placeholder="Custo do produto" value={data.cost} onChange={(e) => update("cost", e.target.value)} />
           <input placeholder="Custo da embalagem" value={data.packaging} onChange={(e) => update("packaging", e.target.value)} />
         </div>
