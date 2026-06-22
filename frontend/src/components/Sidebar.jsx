@@ -28,9 +28,9 @@ export default function Sidebar({ setPage }) {
         📋 Pedidos
       </button>
 
-      <button>
-        📦 Estoque
-      </button>
+      <button onClick={() => setPage("stock")}>
+  📦 Estoque
+</button>
 
       <small>FINANCEIRO</small>
 
