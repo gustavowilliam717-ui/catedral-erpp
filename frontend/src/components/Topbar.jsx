@@ -10,15 +10,14 @@ export default function Topbar() {
   return (
     <header className="topbar-premium">
       <div className="topbar-left">
-        <button onClick={() => toggle("apps")}>▦ Apps</button>
-        <button onClick={() => toggle("help")}>❓ Ajuda</button>
+        <button type="button" onClick={() => toggle("apps")}>▦ Apps</button>
+        <button type="button" onClick={() => toggle("help")}>❓ Ajuda</button>
       </div>
 
       <div className="topbar-right">
-        <button onClick={() => toggle("notifications")}>🔔</button>
-        <button onClick={() => toggle("settings")}>⚙️</button>
-
-        <button className="user-button" onClick={() => toggle("user")}>
+        <button type="button" onClick={() => toggle("notifications")}>🔔</button>
+        <button type="button" onClick={() => toggle("settings")}>⚙️</button>
+        <button type="button" className="user-button" onClick={() => toggle("user")}>
           🛡 Gustavo ▼
         </button>
       </div>
@@ -26,7 +25,6 @@ export default function Topbar() {
       {openMenu === "apps" && (
         <div className="top-dropdown apps-dropdown">
           <h3>Apps Catedral</h3>
-
           <div className="apps-grid">
             <div>🚀 <span>IA Catedral</span></div>
             <div>📦 <span>Marketplace</span></div>
@@ -44,11 +42,8 @@ export default function Topbar() {
       {openMenu === "help" && (
         <div className="top-dropdown help-dropdown">
           <h3>Central de Ajuda</h3>
-
           <input placeholder="Digite sua dúvida..." />
-
-          <button className="primary-action">Fale conosco</button>
-
+          <button type="button" className="primary-action">Fale conosco</button>
           <div className="menu-item">🟢 WhatsApp</div>
           <div className="menu-item">📧 suporte@catedralerp.com</div>
           <div className="menu-item">💬 Enviar feedback</div>
@@ -60,7 +55,6 @@ export default function Topbar() {
       {openMenu === "notifications" && (
         <div className="top-dropdown notification-dropdown">
           <h3>Notificações</h3>
-
           <div className="alert-item green">🟢 Precificação salva com sucesso</div>
           <div className="alert-item blue">🔵 Dashboard atualizado</div>
           <div className="alert-item yellow">🟡 Próximo passo: estoque inteligente</div>
@@ -71,7 +65,6 @@ export default function Topbar() {
       {openMenu === "settings" && (
         <div className="top-dropdown settings-dropdown">
           <h3>Configurações</h3>
-
           <div className="menu-item">🔗 Integrações de Loja</div>
           <div className="menu-item">🛠 Integração de Serviços</div>
           <div className="menu-item">📦 Configurações do Pedido</div>
@@ -89,23 +82,19 @@ export default function Topbar() {
           <div className="plan-box">
             <strong>🛡 Plano PRO</strong>
             <span>Vencimento: 12/07/2026</span>
-            <button>Renovar Plano</button>
+            <button type="button">Renovar Plano</button>
           </div>
 
           <div className="menu-item">👤 Perfil</div>
           <div className="menu-item">🏢 Empresa</div>
           <div className="menu-item">🌎 Idioma</div>
           <div className="menu-item">🔐 Segurança</div>
-
           <hr />
-
           <div className="menu-item">🧾 Faturas</div>
           <div className="menu-item">💳 Planos</div>
           <div className="menu-item">📋 Registros de Atividades</div>
           <div className="menu-item">❓ Central de Ajuda</div>
-
           <hr />
-
           <div className="menu-item logout">🚪 Sair</div>
         </div>
       )}
