@@ -200,30 +200,31 @@ td {
 }
 
 .result-highlight {
-  background: linear-gradient(135deg, #16a34a, #22c55e);
+  background: linear-gradient(135deg, #0f172a, #1e3a8a);
   color: white;
-  padding: 28px;
+  padding: 30px;
   border-radius: 18px;
   text-align: center;
-  margin-bottom: 22px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  margin-bottom: 24px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.15);
 }
 
 .result-highlight h2 {
   font-size: 22px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .result-highlight strong {
   display: block;
-  font-size: 42px;
-  margin-bottom: 8px;
+  font-size: 48px;
+  font-weight: bold;
+  margin-bottom: 12px;
 }
 
 .result-highlight span {
   display: inline-block;
-  background: rgba(255,255,255,0.18);
-  padding: 8px 14px;
+  background: rgba(255,255,255,0.15);
+  padding: 10px 18px;
   border-radius: 999px;
   font-weight: bold;
 }
