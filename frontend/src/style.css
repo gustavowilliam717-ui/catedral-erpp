@@ -1,195 +1,284 @@
-import { useState } from "react";
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: Arial, Helvetica, sans-serif;
+}
 
-export default function Topbar() {
-  const [openMenu, setOpenMenu] = useState(null);
+body {
+  background: #f4f6f9;
+  color: #111827;
+}
 
-  function toggle(menu) {
-    setOpenMenu(openMenu === menu ? null : menu);
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 260px;
+  background: #071a35;
+  color: white;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.content {
+  flex: 1;
+  padding: 35px;
+  background: #f3f6fb;
+}
+
+.logo-area {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 25px;
+  font-size: 32px;
+}
+
+.logo-area h2 {
+  font-size: 22px;
+  margin: 0;
+}
+
+.logo-area span {
+  font-size: 12px;
+  color: #93c5fd;
+}
+
+.sidebar small {
+  margin-top: 20px;
+  margin-bottom: 8px;
+  color: #93c5fd;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.sidebar button {
+  background: transparent;
+  color: white;
+  border: none;
+  text-align: left;
+  padding: 14px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.sidebar button:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+.sidebar-footer {
+  margin-top: auto;
+}
+
+.pro-box {
+  background: rgba(255,255,255,.08);
+  padding: 15px;
+  border-radius: 18px;
+}
+
+.pro-box strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.pro-box span {
+  font-size: 12px;
+  color: #93c5fd;
+}
+
+.topbar-premium {
+  width: 100%;
+  height: 68px;
+  background: #071a35;
+  color: white;
+  border-radius: 20px;
+  padding: 0 22px;
+  margin-bottom: 26px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.22);
+  z-index: 100;
+}
+
+.topbar-left,
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbar-premium button {
+  background: rgba(255,255,255,0.08);
+  color: white;
+  border: none;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.user-button {
+  background: rgba(37, 99, 235, 0.45) !important;
+}
+
+.top-dropdown {
+  position: absolute;
+  top: 78px;
+  background: white;
+  color: #111827;
+  border-radius: 22px;
+  padding: 20px;
+  box-shadow: 0 24px 55px rgba(15, 23, 42, 0.25);
+  z-index: 9999;
+  border: 1px solid #e5e7eb;
+}
+
+.apps-dropdown { left: 0; width: 520px; }
+.help-dropdown { left: 80px; width: 360px; }
+.notification-dropdown { right: 160px; width: 360px; }
+.settings-dropdown { right: 80px; width: 360px; }
+.user-dropdown { right: 0; width: 360px; }
+
+.apps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.apps-grid div,
+.menu-item {
+  padding: 14px;
+  border-radius: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.apps-grid div {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  text-align: center;
+}
+
+.apps-grid span {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.plan-box {
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  border: 1px solid #bfdbfe;
+  padding: 18px;
+  border-radius: 18px;
+  margin-bottom: 14px;
+}
+
+.plan-box strong,
+.plan-box span {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.primary-action,
+.plan-box button {
+  width: 100%;
+  background: #2563eb !important;
+  color: white !important;
+  margin-bottom: 12px;
+}
+
+.alert-item {
+  padding: 14px;
+  border-radius: 14px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.alert-item.green { background: #dcfce7; color: #166534; }
+.alert-item.blue { background: #dbeafe; color: #1e40af; }
+.alert-item.yellow { background: #fef9c3; color: #854d0e; }
+.alert-item.red { background: #fee2e2; color: #991b1b; }
+
+.logout {
+  color: #dc2626;
+}
+
+.card,
+.box {
+  background: white;
+  padding: 22px;
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+  margin-bottom: 22px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-bottom: 25px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+input,
+select,
+button {
+  padding: 12px;
+  border-radius: 9px;
+  border: 1px solid #d1d5db;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+
+th,
+td {
+  padding: 12px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    flex-direction: column;
   }
 
-  return (
-    <header className="topbar-premium">
-      <div className="topbar-left">
-        <button type="button" onClick={() => toggle("apps")}>▦ Apps</button>
-        <button type="button" onClick={() => toggle("help")}>❓ Ajuda</button>
-      </div>
+  .sidebar {
+    width: 100%;
+  }
 
-      <div className="topbar-right">
-        <button type="button" onClick={() => toggle("notifications")}>🔔</button>
-        <button type="button" onClick={() => toggle("settings")}>⚙️</button>
-        <button type="button" className="user-button" onClick={() => toggle("user")}>
-          🛡 Gustavo ▼
-        </button>
-      </div>
+  .cards,
+  .form-grid,
+  .apps-grid {
+    grid-template-columns: 1fr;
+  }
 
-      {openMenu === "apps" && (
-        <div className="top-dropdown apps-dropdown">
-          <h3>Apps Catedral</h3>
-          <div className="apps-grid">
-            <div>🚀 <span>IA Catedral</span></div>
-            <div>📦 <span>Marketplace</span></div>
-            <div>🏷 <span>Etiquetas</span></div>
-            <div>📱 <span>App Mobile</span></div>
-            <div>📊 <span>Analytics</span></div>
-            <div>☁️ <span>Backup</span></div>
-            <div>🖨 <span>Impressora</span></div>
-            <div>🔗 <span>API</span></div>
-            <div>💾 <span>Banco de Dados</span></div>
-          </div>
-        </div>
-      )}
+  .topbar-premium {
+    height: auto;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 14px;
+  }
 
-      {openMenu === "help" && (
-        <div className="top-dropdown help-dropdown">
-          <h3>Central de Ajuda</h3>
-          <input placeholder="Digite sua dúvida..." />
-          <button type="button" className="primary-action">Fale conosco</button>
-          <div className="menu-item">🟢 WhatsApp</div>
-          <div className="menu-item">📧 suporte@catedralerp.com</div>
-          <div className="menu-item">💬 Enviar feedback</div>
-          <div className="menu-item">🎥 Vídeos tutoriais</div>
-          <div className="menu-item">🐞 Reportar erro</div>
-        </div>
-      )}
-
-      {openMenu === "notifications" && (
-        <div className="top-dropdown notification-dropdown">
-          <h3>Notificações</h3>
-          <div className="alert-item green">🟢 Precificação salva com sucesso</div>
-          <div className="alert-item blue">🔵 Dashboard atualizado</div>
-          <div className="alert-item yellow">🟡 Próximo passo: estoque inteligente</div>
-          <div className="alert-item red">🔴 Nenhuma integração conectada</div>
-        </div>
-      )}
-
-      {openMenu === "settings" && (
-        <div className="top-dropdown settings-dropdown">
-          <h3>Configurações</h3>
-          <div className="menu-item">🔗 Integrações de Loja</div>
-          <div className="menu-item">🛠 Integração de Serviços</div>
-          <div className="menu-item">📦 Configurações do Pedido</div>
-          <div className="menu-item">🚚 Configurações de Envio</div>
-          <div className="menu-item">📄 Nota Fiscal</div>
-          <div className="menu-item">📊 Estoque</div>
-          <div className="menu-item">💰 Financeiro</div>
-          <div className="menu-item">🔐 Permissões</div>
-          <div className="menu-item">🎨 Aparência</div>
-        </div>
-      )}
-
-      {openMenu === "user" && (
-        <div className="top-dropdown user-dropdown">
-          <div className="plan-box">
-            <strong>🛡 Plano PRO</strong>
-            <span>Vencimento: 12/07/2026</span>
-            <button type="button">Renovar Plano</button>
-          </div>
-
-          <div className="menu-item">👤 Perfil</div>
-          <div className="menu-item">🏢 Empresa</div>
-          <div className="menu-item">🌎 Idioma</div>
-          <div className="menu-item">🔐 Segurança</div>
-          <hr />
-          <div className="menu-item">🧾 Faturas</div>
-          <div className="menu-item">💳 Planos</div>
-          <div className="menu-item">📋 Registros de Atividades</div>
-          <div className="menu-item">❓ Central de Ajuda</div>
-          <hr />
-          <div className="menu-item logout">🚪 Sair</div>
-        </div>
-      )}
-    </header>
-  );
-}
-.logo-area{
-display:flex;
-align-items:center;
-gap:15px;
-margin-bottom:25px;
-font-size:32px;
-}
-
-.logo-area h2{
-font-size:22px;
-margin:0;
-}
-
-.logo-area span{
-font-size:12px;
-color:#93c5fd;
-}
-
-.sidebar small{
-margin-top:20px;
-margin-bottom:8px;
-color:#93c5fd;
-font-size:11px;
-font-weight:800;
-letter-spacing:2px;
-}
-
-.sidebar-footer{
-margin-top:auto;
-}
-
-.pro-box{
-background:rgba(255,255,255,.08);
-padding:15px;
-border-radius:18px;
-}
-
-.pro-box strong{
-display:block;
-margin-bottom:8px;
-}
-
-.pro-box span{
-font-size:12px;
-color:#93c5fd;
-}
-.logo-area{
-display:flex;
-align-items:center;
-gap:15px;
-margin-bottom:25px;
-font-size:32px;
-}
-
-.logo-area h2{
-font-size:22px;
-margin:0;
-}
-
-.logo-area span{
-font-size:12px;
-color:#93c5fd;
-}
-
-.sidebar small{
-margin-top:20px;
-margin-bottom:8px;
-color:#93c5fd;
-font-size:11px;
-font-weight:800;
-letter-spacing:2px;
-}
-
-.sidebar-footer{
-margin-top:auto;
-}
-
-.pro-box{
-background:rgba(255,255,255,.08);
-padding:15px;
-border-radius:18px;
-}
-
-.pro-box strong{
-display:block;
-margin-bottom:8px;
-}
-
-.pro-box span{
-font-size:12px;
-color:#93c5fd;
+  .top-dropdown {
+    position: static;
+    width: 100%;
+    margin-top: 14px;
+  }
 }
