@@ -192,5 +192,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
-Depois faça Commit changes.
