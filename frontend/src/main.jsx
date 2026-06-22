@@ -9,6 +9,7 @@ import Products from "./pages/Products";
 import Finance from "./pages/Finance";
 import Pricing from "./pages/Pricing";
 import Stock from "./pages/Stock"; // ← ADICIONE ESTA LINHA
+import ImportShopee from "./pages/ImportShopee";
 
 import "./style.css";
 
@@ -27,6 +28,7 @@ function App() {
         {page === "finance" && <Finance />}
         {page === "pricing" && <Pricing />}
         {page === "stock" && <Stock />} {/* ← ADICIONE ESTA LINHA */}
+        {page === "importShopee" && <ImportShopee />}
       </main>
     </div>
   );
