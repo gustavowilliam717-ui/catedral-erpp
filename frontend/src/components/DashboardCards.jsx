@@ -1,6 +1,6 @@
 export default function DashboardCards({ dashboard }) {
   return (
-    <div className="cards">
+    <div className="dashboard-cards">
 
       <div className="card">
   <span>💰</span>
