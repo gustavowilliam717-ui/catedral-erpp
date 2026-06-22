@@ -1,138 +1,172 @@
 import { useEffect, useState } from "react";
 import {
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid
+  BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
 } from "recharts";
 import API from "../services/api";
+
 export default function Dashboard() {
-  const [dashboard, setDashboard] = useState({});
   const [products, setProducts] = useState([]);
-  const [revenues, setRevenues] = useState([]);
-  const [expenses, setExpenses] = useState([]);
+  const [history, setHistory] = useState([]);
+
   useEffect(() => {
     loadData();
   }, []);
+
   async function loadData() {
-    const dash = await API.get("/dashboard");
-    const prod = await API.get("/products");
-    const rev = await API.get("/revenues");
-    const exp = await API.get("/expenses");
-    setDashboard(dash.data);
-    setProducts(prod.data);
-    setRevenues(rev.data);
-    setExpenses(exp.data);
+    try {
+      const prod = await API.get("/products");
+      const hist = await API.get("/pricing-history");
+
+      setProducts(prod.data);
+      setHistory(hist.data);
+    } catch (error) {
+      console.log(error);
+    }
   }
-  const totalRevenue = revenues.reduce((sum, item) => sum + Number(item.value), 0);
-  const totalExpense = expenses.reduce((sum, item) => sum + Number(item.value), 0);
-  const profit = totalRevenue - totalExpense;
-  const averageTicket = revenues.length > 0 ? totalRevenue / revenues.length : 0;
-  const lowStockProducts = products.filter(
-    (item) => Number(item.stock) <= Number(item.minimum_stock)
+
+  function money(value) {
+    return "R$ " + Number(value || 0).toFixed(2);
+  }
+
+  const totalProducts = products.length;
+  const totalPricings = history.length;
+
+  const totalSuggestedRevenue = history.reduce(
+    (sum, item) => sum + Number(item.suggested_price || 0),
+    0
   );
-  const marketplaceData = ["Shopee", "Mercado Livre", "TikTok Shop", "Amazon", "Magalu"].map(
+
+  const totalProfit = history.reduce(
+    (sum, item) => sum + Number(item.profit || 0),
+    0
+  );
+
+  const averageMargin =
+    history.length > 0
+      ? history.reduce((sum, item) => sum + Number(item.margin || 0), 0) / history.length
+      : 0;
+
+  const bestProduct =
+    history.length > 0
+      ? [...history].sort((a, b) => Number(b.profit) - Number(a.profit))[0]
+      : null;
+
+  const marketplaceData = ["Shopee", "Mercado Livre", "TikTok Shop", "Amazon"].map(
     (marketplace) => ({
       marketplace,
-      total: products.filter((product) => product.marketplace === marketplace).length
+      lucro: history
+        .filter((item) => item.marketplace === marketplace)
+        .reduce((sum, item) => sum + Number(item.profit || 0), 0),
+      precificacoes: history.filter((item) => item.marketplace === marketplace).length,
     })
   );
-  const stockValueData = products.slice(0, 8).map((product) => ({
-    name: product.name,
-    value: Number(product.cost) * Number(product.stock)
-  }));
-  const financeData = [
-    { name: "Receitas", value: totalRevenue },
-    { name: "Despesas", value: totalExpense },
-    { name: "Lucro", value: profit }
-  ];
+
+  const topProducts = [...history]
+    .sort((a, b) => Number(b.profit) - Number(a.profit))
+    .slice(0, 6);
+
   const monthlyData = [
-    { month: "Jan", revenue: totalRevenue * 0.55, profit: profit * 0.55 },
-    { month: "Fev", revenue: totalRevenue * 0.65, profit: profit * 0.65 },
-    { month: "Mar", revenue: totalRevenue * 0.7, profit: profit * 0.7 },
-    { month: "Abr", revenue: totalRevenue * 0.8, profit: profit * 0.8 },
-    { month: "Mai", revenue: totalRevenue * 0.9, profit: profit * 0.9 },
-    { month: "Jun", revenue: totalRevenue, profit }
+    { mes: "Jan", faturamento: totalSuggestedRevenue * 0.35, lucro: totalProfit * 0.35 },
+    { mes: "Fev", faturamento: totalSuggestedRevenue * 0.48, lucro: totalProfit * 0.48 },
+    { mes: "Mar", faturamento: totalSuggestedRevenue * 0.62, lucro: totalProfit * 0.62 },
+    { mes: "Abr", faturamento: totalSuggestedRevenue * 0.76, lucro: totalProfit * 0.76 },
+    { mes: "Mai", faturamento: totalSuggestedRevenue * 0.9, lucro: totalProfit * 0.9 },
+    { mes: "Jun", faturamento: totalSuggestedRevenue, lucro: totalProfit },
   ];
+
+  const goal = 100000;
+  const goalPercent = totalSuggestedRevenue > 0 ? (totalSuggestedRevenue / goal) * 100 : 0;
+
   return (
-    <div className="page">
-      <h1>Dashboard</h1>
-      <div className="dashboard-hero">
+    <div className="page premium-dashboard">
+      <div className="premium-hero">
         <div>
-          <h2>Catedral ERP</h2>
-          <p>Visão geral da operação, produtos, estoque, financeiro e marketplaces.</p>
+          <span className="hero-badge">🚀 Marketplace Intelligence</span>
+          <h1>CATEDRAL ERP</h1>
+          <p>Visão premium da operação, precificação, lucro e marketplaces.</p>
         </div>
-        <div className="hero-number">
-          R$ {profit.toFixed(2)}
-          <span>Lucro líquido estimado</span>
-        </div>
-      </div>
-      <div className="cards dashboard-cards">
-        <div className="card">
-          <h3>Faturamento</h3>
-          <p>R$ {totalRevenue.toFixed(2)}</p>
-        </div>
-        <div className="card">
-          <h3>Lucro líquido</h3>
-          <p>R$ {profit.toFixed(2)}</p>
-        </div>
-        <div className="card">
-          <h3>Produtos</h3>
-          <p>{dashboard.total_products || 0}</p>
-        </div>
-        <div className="card">
-          <h3>Ticket médio</h3>
-          <p>R$ {averageTicket.toFixed(2)}</p>
+
+        <div className="hero-profit">
+          <span>Lucro estimado</span>
+          <strong>{money(totalProfit)}</strong>
         </div>
       </div>
+
+      <div className="premium-cards">
+        <div className="premium-card">
+          <span>💰</span>
+          <h3>Faturamento estimado</h3>
+          <p>{money(totalSuggestedRevenue)}</p>
+        </div>
+
+        <div className="premium-card">
+          <span>📈</span>
+          <h3>Lucro estimado</h3>
+          <p>{money(totalProfit)}</p>
+        </div>
+
+        <div className="premium-card">
+          <span>📊</span>
+          <h3>Margem média</h3>
+          <p>{averageMargin.toFixed(1)}%</p>
+        </div>
+
+        <div className="premium-card">
+          <span>📦</span>
+          <h3>Produtos cadastrados</h3>
+          <p>{totalProducts}</p>
+        </div>
+
+        <div className="premium-card">
+          <span>🧮</span>
+          <h3>Precificações</h3>
+          <p>{totalPricings}</p>
+        </div>
+
+        <div className="premium-card">
+          <span>🏆</span>
+          <h3>Produto mais lucrativo</h3>
+          <p>{bestProduct ? bestProduct.product_name : "Sem dados"}</p>
+        </div>
+      </div>
+
+      <div className="goal-box">
+        <div>
+          <h2>Meta do mês</h2>
+          <p>{money(totalSuggestedRevenue)} de {money(goal)}</p>
+        </div>
+
+        <div className="goal-bar">
+          <div style={{ width: `${Math.min(goalPercent, 100)}%` }} />
+        </div>
+
+        <strong>{goalPercent.toFixed(1)}%</strong>
+      </div>
+
       <div className="dashboard-grid">
         <div className="box chart-box">
-          <h2>Faturamento e lucro</h2>
-          <ResponsiveContainer width="100%" height={280}>
+          <h2>Faturamento x Lucro</h2>
+
+          <ResponsiveContainer width="100%" height={300}>
             <LineChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
+              <XAxis dataKey="mes" />
               <YAxis />
               <Tooltip />
-              <Line type="monotone" dataKey="revenue" name="Faturamento" strokeWidth={3} />
-              <Line type="monotone" dataKey="profit" name="Lucro" strokeWidth={3} />
+              <Line type="monotone" dataKey="faturamento" name="Faturamento" strokeWidth={4} />
+              <Line type="monotone" dataKey="lucro" name="Lucro" strokeWidth={4} />
             </LineChart>
           </ResponsiveContainer>
         </div>
+
         <div className="box chart-box">
-          <h2>Produtos por marketplace</h2>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={marketplaceData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="marketplace" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="total" name="Produtos" radius={[10, 10, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-      <div className="dashboard-grid">
-        <div className="box chart-box">
-          <h2>Resumo financeiro</h2>
-          <ResponsiveContainer width="100%" height={280}>
+          <h2>Lucro por marketplace</h2>
+
+          <ResponsiveContainer width="100%" height={300}>
             <PieChart>
-              <Pie
-                data={financeData}
-                dataKey="value"
-                nameKey="name"
-                outerRadius={95}
-                label
-              >
-                {financeData.map((entry, index) => (
+              <Pie data={marketplaceData} dataKey="lucro" nameKey="marketplace" outerRadius={100} label>
+                {marketplaceData.map((item, index) => (
                   <Cell key={index} />
                 ))}
               </Pie>
@@ -140,53 +174,58 @@ export default function Dashboard() {
             </PieChart>
           </ResponsiveContainer>
         </div>
+      </div>
+
+      <div className="dashboard-grid">
         <div className="box chart-box">
-          <h2>Valor em estoque por produto</h2>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={stockValueData} layout="vertical">
+          <h2>Precificações por marketplace</h2>
+
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={marketplaceData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" />
-              <YAxis dataKey="name" type="category" width={120} />
+              <XAxis dataKey="marketplace" />
+              <YAxis />
               <Tooltip />
-              <Bar dataKey="value" name="Valor em estoque" radius={[0, 10, 10, 0]} />
+              <Bar dataKey="precificacoes" name="Precificações" radius={[12, 12, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
-      <div className="dashboard-grid">
+
         <div className="box">
-          <h2>Produtos com estoque baixo</h2>
-          {lowStockProducts.length === 0 ? (
-            <p>Nenhum produto com estoque baixo.</p>
-          ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>Produto</th>
-                  <th>Estoque</th>
-                  <th>Mínimo</th>
+          <h2>Top produtos mais lucrativos</h2>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>Marketplace</th>
+                <th>Lucro</th>
+                <th>Margem</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {topProducts.map((item) => (
+                <tr key={item.id}>
+                  <td>{item.product_name}</td>
+                  <td>{item.marketplace}</td>
+                  <td>{money(item.profit)}</td>
+                  <td>{Number(item.margin || 0).toFixed(1)}%</td>
                 </tr>
-              </thead>
-              <tbody>
-                {lowStockProducts.map((product) => (
-                  <tr key={product.id} className="low-stock-row">
-                    <td>{product.name}</td>
-                    <td>{product.stock}</td>
-                    <td>{product.minimum_stock}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+              ))}
+            </tbody>
+          </table>
         </div>
-        <div className="box">
-          <h2>Ações rápidas</h2>
-          <div className="quick-actions">
-            <button>Novo produto</button>
-            <button>Precificar produto</button>
-            <button>Cadastrar receita</button>
-            <button>Cadastrar despesa</button>
-          </div>
+      </div>
+
+      <div className="alerts-box">
+        <h2>Alertas inteligentes</h2>
+
+        <div className="alerts-grid">
+          <div>🟢 Precificação integrada com produtos</div>
+          <div>🔵 Histórico alimentando o Dashboard</div>
+          <div>🟡 Próximo passo: estoque inteligente</div>
+          <div>🚀 Catedral ERP em evolução premium</div>
         </div>
       </div>
     </div>
