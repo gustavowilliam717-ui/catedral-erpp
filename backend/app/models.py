@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String, Float, DateTime
 from .database import Base
 
 
@@ -36,3 +36,21 @@ class Revenue(Base):
     description = Column(String, default="")
     value = Column(Float, default=0)
     category = Column(String, default="Venda")
+    
+from datetime import datetime
+
+class PricingHistory(Base):
+    __tablename__ = "pricing_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    product_id = Column(Integer, default=0)
+    sku = Column(String, default="")
+    product_name = Column(String, default="")
+    marketplace = Column(String, default="")
+
+    suggested_price = Column(Float, default=0)
+    profit = Column(Float, default=0)
+    margin = Column(Float, default=0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
