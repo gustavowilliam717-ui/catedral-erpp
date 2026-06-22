@@ -1,26 +1,18 @@
 export default function Stock() {
-  const products = [
-    {
-      sku: "SKU-001",
-      name: "Biombo Treliça",
-      stock: 15,
-      minimum: 30,
-      monthlySales: 120,
-    },
-    {
-      sku: "SKU-002",
-      name: "Mesa Bistrô",
-      stock: 42,
-      minimum: 50,
-      monthlySales: 90,
-    },
-    {
-      sku: "SKU-003",
-      name: "Pergolado MDF",
-      stock: 8,
-      minimum: 25,
-      monthlySales: 70,
-    },
+ const [products, setProducts] = useState([]);
+
+useEffect(() => {
+  loadProducts();
+}, []);
+
+async function loadProducts() {
+  try {
+    const response = await API.get("/products");
+    setProducts(response.data || []);
+  } catch (error) {
+    console.log(error);
+  }
+}
   ];
 
   function daysLeft(stock, monthlySales) {
