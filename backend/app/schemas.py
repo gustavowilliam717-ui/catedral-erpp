@@ -20,6 +20,12 @@ class ExpenseCreate(BaseModel):
     category: str = "Geral"
 
 
+class RevenueCreate(BaseModel):
+    description: str
+    value: float
+    category: str = "Venda"
+
+
 class PriceSimulation(BaseModel):
     cost: float
     desired_profit_percent: float = 15
