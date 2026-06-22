@@ -549,7 +549,7 @@ td {
     grid-template-columns: 1fr;
     width: 100%;
   }
-}
+
 import { useState } from "react";
 
 export default function Topbar() {
