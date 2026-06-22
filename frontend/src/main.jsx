@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Finance from "./pages/Finance";
 import Pricing from "./pages/Pricing";
+import Topbar from "./components/Topbar";
 
 import "./style.css";
 
@@ -17,6 +18,8 @@ function App() {
       <Sidebar setPage={setPage} />
 
       <main className="content">
+        <Topbar />
+        
         {page === "dashboard" && <Dashboard />}
         {page === "products" && <Products />}
         {page === "finance" && <Finance />}
