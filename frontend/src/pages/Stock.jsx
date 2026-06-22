@@ -111,3 +111,24 @@ export default function Stock() {
     </div>
   );
 }
+<div className="dashboard-alerts">
+  <h2>🤖 IA Catedral</h2>
+
+  <div>
+    <span>
+      🔴 Existem produtos abaixo do estoque mínimo.
+    </span>
+
+    <span>
+      🛒 Sugestão automática de reposição calculada.
+    </span>
+
+    <span>
+      📦 Estoque médio baseado em vendas mensais.
+    </span>
+
+    <span>
+      🚀 Próximo passo: integrar com produtos reais.
+    </span>
+  </div>
+</div>
