@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from app.models import PricingHistory
+from app.schemas import PricingHistoryCreate
 
 from .database import Base, engine, get_db
 from . import models, schemas
@@ -183,3 +185,34 @@ def delete_revenue(revenue_id: int, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "Receita excluída com sucesso"}
+
+@app.post("/pricing-history")
+def create_pricing_history(
+    history: PricingHistoryCreate,
+    db: Session = Depends(get_db)
+):
+    new_history = PricingHistory(
+        product_id=history.product_id,
+        sku=history.sku,
+        product_name=history.product_name,
+        marketplace=history.marketplace,
+        suggested_price=history.suggested_price,
+        profit=history.profit,
+        margin=history.margin
+    )
+
+    db.add(new_history)
+    db.commit()
+    db.refresh(new_history)
+
+    return new_history
+
+
+@app.get("/pricing-history")
+def get_pricing_history(db: Session = Depends(get_db)):
+    return (
+        db.query(PricingHistory)
+        .order_by(PricingHistory.id.desc())
+        .limit(100)
+        .all()
+    )
