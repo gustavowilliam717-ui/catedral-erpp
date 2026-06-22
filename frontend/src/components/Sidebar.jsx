@@ -12,86 +12,49 @@ export default function Sidebar({ setPage }) {
 
       <small>OPERAÇÃO</small>
 
-      <button onClick={() => setPage("dashboard")}>
-        🏠 Dashboard
-      </button>
+      <button onClick={() => setPage("dashboard")}>🏠 Dashboard</button>
 
-      <button onClick={() => setPage("products")}>
-        📦 Produtos
-      </button>
+      <button onClick={() => setPage("products")}>📦 Produtos</button>
 
-      <button onClick={() => setPage("pricing")}>
-        🧮 Precificação
-      </button>
+      <button onClick={() => setPage("pricing")}>🧮 Precificação</button>
 
-      <button>
-        📋 Pedidos
-      </button>
+      <button>📋 Pedidos</button>
 
-      <button>
-        📦 Estoque
-      </button>
+      <button>📦 Estoque</button>
 
       <small>FINANCEIRO</small>
 
-      <button>
-        💰 Receitas
-      </button>
+      <button>💰 Receitas</button>
 
-      <button>
-        💸 Despesas
-      </button>
+      <button>💸 Despesas</button>
 
-      <button>
-        📈 Fluxo de Caixa
-      </button>
+      <button>📈 Fluxo de Caixa</button>
 
-      <button>
-        📊 DRE
-      </button>
+      <button>📊 DRE</button>
 
       <small>INTELIGÊNCIA</small>
 
-      <button>
-        🤖 IA Catedral
-      </button>
+      <button>🤖 IA Catedral</button>
 
-      <button>
-        📊 Relatórios
-      </button>
+      <button>📊 Relatórios</button>
 
-      <button>
-        🏆 Ranking Produtos
-      </button>
+      <button>🏆 Ranking Produtos</button>
 
-      <button>
-        🎯 Metas
-      </button>
+      <button>🎯 Metas</button>
 
       <small>SISTEMA</small>
 
-      <button>
-        🔗 Integrações
-      </button>
+      <button>🔗 Integrações</button>
 
-      <button>
-        ⚙️ Configurações
-      </button>
+      <button>⚙️ Configurações</button>
 
-      <button>
-        👤 Usuários
-      </button>
+      <button>👤 Usuários</button>
 
       <div className="sidebar-footer">
-
         <div className="pro-box">
           <strong>🛡 PRO</strong>
-
-          <span>
-            Catedral ERP v1.0
-          </span>
+          <span>Catedral ERP v1.0</span>
         </div>
-
       </div>
 
     </aside>
