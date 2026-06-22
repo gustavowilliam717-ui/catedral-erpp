@@ -3,9 +3,21 @@ export default function Sidebar({ setPage }) {
     <aside className="sidebar">
       <h2>Catedral ERP</h2>
 
-      <button onClick={() => setPage("dashboard")}>Dashboard</button>
-      <button onClick={() => setPage("products")}>Produtos</button>
-      <button onClick={() => setPage("finance")}>Financeiro</button>
+      <button onClick={() => setPage("dashboard")}>
+        Dashboard
+      </button>
+
+      <button onClick={() => setPage("products")}>
+        Produtos
+      </button>
+
+      <button onClick={() => setPage("finance")}>
+        Financeiro
+      </button>
+
+      <button onClick={() => setPage("pricing")}>
+        Precificação
+      </button>
 
       <div className="menu-disabled">
         <span>Pedidos</span>
