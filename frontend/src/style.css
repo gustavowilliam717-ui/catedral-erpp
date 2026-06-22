@@ -164,3 +164,72 @@ td {
   font-weight: bold;
   font-size: 12px;
 }
+  
+.pricing-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.pricing-options button {
+  min-height: 85px;
+  font-size: 16px;
+  font-weight: bold;
+  background: white;
+  color: #071a35;
+  border: 2px solid #d1d5db;
+}
+
+.pricing-options button:hover {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.check-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  font-weight: bold;
+}
+
+.check-line input {
+  width: 18px;
+  height: 18px;
+}
+
+.result-highlight {
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+  color: white;
+  padding: 28px;
+  border-radius: 18px;
+  text-align: center;
+  margin-bottom: 22px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+.result-highlight h2 {
+  font-size: 22px;
+  margin-bottom: 10px;
+}
+
+.result-highlight strong {
+  display: block;
+  font-size: 42px;
+  margin-bottom: 8px;
+}
+
+.result-highlight span {
+  display: inline-block;
+  background: rgba(255,255,255,0.18);
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-weight: bold;
+}
+
+@media (max-width: 900px) {
+  .pricing-options {
+    grid-template-columns: 1fr;
+  }
+}
