@@ -1,84 +1,114 @@
 import { useState } from "react";
 
 export default function Topbar() {
-  const [appsOpen, setAppsOpen] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [userOpen, setUserOpen] = useState(false);
+  const [openMenu, setOpenMenu] = useState(null);
+
+  function toggle(menu) {
+    setOpenMenu(openMenu === menu ? null : menu);
+  }
 
   return (
-    <header className="topbar">
+    <header className="topbar-premium">
       <div className="topbar-left">
-        <button onClick={() => setAppsOpen(!appsOpen)}>▦</button>
-
-        {appsOpen && (
-          <div className="top-menu apps-menu">
-            <div>🚀 IA Catedral</div>
-            <div>📱 App Mobile</div>
-            <div>🖨 Impressora</div>
-            <div>🏷 Etiquetas</div>
-            <div>📊 Analytics</div>
-            <div>📦 Marketplace</div>
-            <div>☁ Backup</div>
-            <div>🔗 API</div>
-          </div>
-        )}
+        <button onClick={() => toggle("apps")}>▦ Apps</button>
+        <button onClick={() => toggle("help")}>❓ Ajuda</button>
       </div>
 
       <div className="topbar-right">
-        <button onClick={() => setHelpOpen(!helpOpen)}>❓ Ajuda</button>
-        <button>🔔</button>
-        <button onClick={() => setSettingsOpen(!settingsOpen)}>⚙️</button>
+        <button onClick={() => toggle("notifications")}>🔔</button>
+        <button onClick={() => toggle("settings")}>⚙️</button>
 
-        <button className="user-button" onClick={() => setUserOpen(!userOpen)}>
-          🛡️ Gustavo ▾
+        <button className="user-button" onClick={() => toggle("user")}>
+          🛡 Gustavo ▼
         </button>
-
-        {helpOpen && (
-          <div className="top-menu help-menu">
-            <input placeholder="Digite sua pergunta..." />
-            <button>Fale conosco</button>
-            <div>🟢 WhatsApp</div>
-            <div>📧 suporte@catedralerp.com</div>
-            <div>💬 Feedback</div>
-            <div>🎥 Vídeos tutoriais</div>
-          </div>
-        )}
-
-        {settingsOpen && (
-          <div className="top-menu settings-menu">
-            <h3>Configurações</h3>
-            <div>🔗 Integrações de Loja</div>
-            <div>🛠 Integração de Serviços</div>
-            <div>📦 Configurações do Pedido</div>
-            <div>🚚 Configurações de Envio</div>
-            <div>📄 Nota Fiscal</div>
-            <div>📊 Estoque</div>
-            <div>💰 Financeiro</div>
-            <div>🔐 Permissões</div>
-          </div>
-        )}
-
-        {userOpen && (
-          <div className="top-menu user-menu">
-            <div className="plan-box">
-              <strong>🛡️ PRO</strong>
-              <span>Vencimento: 12/07/2026</span>
-              <button>Renovar Plano</button>
-            </div>
-
-            <div>👤 Perfil</div>
-            <div>🏢 Empresa</div>
-            <div>🌎 Idioma</div>
-            <div>🔐 Segurança</div>
-            <div>🧾 Faturas</div>
-            <div>💳 Planos</div>
-            <div>📋 Registros de Atividades</div>
-            <div>❓ Central de Ajuda</div>
-            <div>🚪 Sair</div>
-          </div>
-        )}
       </div>
+
+      {openMenu === "apps" && (
+        <div className="top-dropdown apps-dropdown">
+          <h3>Apps Catedral</h3>
+
+          <div className="apps-grid">
+            <div>🚀 <span>IA Catedral</span></div>
+            <div>📦 <span>Marketplace</span></div>
+            <div>🏷 <span>Etiquetas</span></div>
+            <div>📱 <span>App Mobile</span></div>
+            <div>📊 <span>Analytics</span></div>
+            <div>☁️ <span>Backup</span></div>
+            <div>🖨 <span>Impressora</span></div>
+            <div>🔗 <span>API</span></div>
+            <div>💾 <span>Banco de Dados</span></div>
+          </div>
+        </div>
+      )}
+
+      {openMenu === "help" && (
+        <div className="top-dropdown help-dropdown">
+          <h3>Central de Ajuda</h3>
+
+          <input placeholder="Digite sua dúvida..." />
+
+          <button className="primary-action">Fale conosco</button>
+
+          <div className="menu-item">🟢 WhatsApp</div>
+          <div className="menu-item">📧 suporte@catedralerp.com</div>
+          <div className="menu-item">💬 Enviar feedback</div>
+          <div className="menu-item">🎥 Vídeos tutoriais</div>
+          <div className="menu-item">🐞 Reportar erro</div>
+        </div>
+      )}
+
+      {openMenu === "notifications" && (
+        <div className="top-dropdown notification-dropdown">
+          <h3>Notificações</h3>
+
+          <div className="alert-item green">🟢 Precificação salva com sucesso</div>
+          <div className="alert-item blue">🔵 Dashboard atualizado</div>
+          <div className="alert-item yellow">🟡 Próximo passo: estoque inteligente</div>
+          <div className="alert-item red">🔴 Nenhuma integração conectada</div>
+        </div>
+      )}
+
+      {openMenu === "settings" && (
+        <div className="top-dropdown settings-dropdown">
+          <h3>Configurações</h3>
+
+          <div className="menu-item">🔗 Integrações de Loja</div>
+          <div className="menu-item">🛠 Integração de Serviços</div>
+          <div className="menu-item">📦 Configurações do Pedido</div>
+          <div className="menu-item">🚚 Configurações de Envio</div>
+          <div className="menu-item">📄 Nota Fiscal</div>
+          <div className="menu-item">📊 Estoque</div>
+          <div className="menu-item">💰 Financeiro</div>
+          <div className="menu-item">🔐 Permissões</div>
+          <div className="menu-item">🎨 Aparência</div>
+        </div>
+      )}
+
+      {openMenu === "user" && (
+        <div className="top-dropdown user-dropdown">
+          <div className="plan-box">
+            <strong>🛡 Plano PRO</strong>
+            <span>Vencimento: 12/07/2026</span>
+            <button>Renovar Plano</button>
+          </div>
+
+          <div className="menu-item">👤 Perfil</div>
+          <div className="menu-item">🏢 Empresa</div>
+          <div className="menu-item">🌎 Idioma</div>
+          <div className="menu-item">🔐 Segurança</div>
+
+          <hr />
+
+          <div className="menu-item">🧾 Faturas</div>
+          <div className="menu-item">💳 Planos</div>
+          <div className="menu-item">📋 Registros de Atividades</div>
+          <div className="menu-item">❓ Central de Ajuda</div>
+
+          <hr />
+
+          <div className="menu-item logout">🚪 Sair</div>
+        </div>
+      )}
     </header>
   );
 }
