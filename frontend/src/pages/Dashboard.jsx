@@ -1,11 +1,3 @@
-Perfeito. Agora vamos trocar o Dashboard.
-
-Abra:
-
-frontend/src/pages/Dashboard.jsx
-
-Apague tudo e cole o código completo abaixo:
-
 import { useEffect, useState } from "react";
 import {
   BarChart,
