@@ -5,6 +5,7 @@ import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Finance from "./pages/Finance";
+import Pricing from "./pages/Pricing";
 
 import "./style.css";
 
@@ -19,6 +20,7 @@ function App() {
         {page === "dashboard" && <Dashboard />}
         {page === "products" && <Products />}
         {page === "finance" && <Finance />}
+        {page === "pricing" && <Pricing />}
       </main>
     </div>
   );
