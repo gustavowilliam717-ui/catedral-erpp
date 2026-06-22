@@ -282,3 +282,19 @@ td {
     margin-top: 14px;
   }
 }
+.dashboard-page {
+  width: 100%;
+  min-height: 100vh;
+  background: #f3f6fb;
+}
+
+.dashboard-hero-premium {
+  background: linear-gradient(135deg, #020617, #0f172a, #2563eb);
+  color: white;
+  padding: 38px;
+  border-radius: 30px;
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
