@@ -5,7 +5,7 @@ export default function Pricing() {
     sellerType: "CNPJ",
     marketplace: "Shopee",
     mlAdType: "Clássico",
-    taxRegime: "Simples Nacional",
+    taxPercent: "",
 
     cost: "",
     packaging: "",
@@ -51,15 +51,7 @@ export default function Pricing() {
     return "R$ " + Number(value || 0).toFixed(2);
   }
 
-  function getTaxPercent() {
-    if (data.taxRegime === "MEI") return 0;
-    if (data.taxRegime === "Simples Nacional") return 1.5;
-    if (data.taxRegime === "Lucro Presumido") return 5;
-    if (data.taxRegime === "Lucro Real") return 8;
-    return 1.5;
-  }
-
-  function getMarketplaceRule(marketplace, price) {
+   function getMarketplaceRule(marketplace, price) {
     if (marketplace === "Shopee") {
       return {
         percent: 14,
@@ -114,7 +106,7 @@ export default function Pricing() {
 
   const productCost = cost + packaging + consumables;
 
-  const taxPercent = getTaxPercent();
+  const taxPercent = num(data.taxPercent);
   const discountPercent = num(data.discountPercent);
   const couponValue = num(data.couponValue);
 
