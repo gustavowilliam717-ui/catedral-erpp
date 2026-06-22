@@ -72,6 +72,11 @@ def dashboard(db: Session = Depends(get_db)):
         "low_stock_products": low_stock_products
     }
 
+if(flag==true)
+{
+    
+}
+
 
 @app.post("/products")
 def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)):
