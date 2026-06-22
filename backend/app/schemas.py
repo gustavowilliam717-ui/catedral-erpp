@@ -33,3 +33,12 @@ class PriceSimulation(BaseModel):
     freight_percent: float = 4
     anticipation_percent: float = 3.5
     fixed_cost_percent: float = 0
+
+class PricingHistoryCreate(BaseModel):
+    product_id: int = 0
+    sku: str = ""
+    product_name: str = ""
+    marketplace: str = ""
+    suggested_price: float = 0
+    profit: float = 0
+    margin: float = 0
