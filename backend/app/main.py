@@ -29,9 +29,24 @@ def dashboard(db: Session = Depends(get_db)):
 
     total_stock_value = sum(p.cost * p.stock for p in products)
     total_sales_value = sum(p.sale_price * p.stock for p in products)
-    total_cost_value = sum(p.cost * p.stock for p in products)
-    estimated_profit = total_sales_value - total_cost_value
+    estimated_profit = total_sales_value - total_stock_value
     monthly_expenses = sum(e.value for e in expenses)
+
+    low_stock_products = [
+        {
+            "name": p.name,
+            "stock": p.stock,
+            "minimum_stock": p.minimum_stock
+        }
+        for p in products
+        if p.stock <= p.minimum_stock
+    ]
+
+    shopee_count = len([p for p in products if p.marketplace == "Shopee"])
+    ml_count = len([p for p in products if p.marketplace == "Mercado Livre"])
+    amazon_count = len([p for p in products if p.marketplace == "Amazon"])
+    magalu_count = len([p for p in products if p.marketplace == "Magalu"])
+    tiktok_count = len([p for p in products if p.marketplace == "TikTok Shop"])
 
     return {
         "total_products": len(products),
@@ -39,6 +54,16 @@ def dashboard(db: Session = Depends(get_db)):
         "total_sales_value": round(total_sales_value, 2),
         "estimated_profit": round(estimated_profit, 2),
         "monthly_expenses": round(monthly_expenses, 2),
+
+        "marketplaces": {
+            "Shopee": shopee_count,
+            "Mercado Livre": ml_count,
+            "Amazon": amazon_count,
+            "Magalu": magalu_count,
+            "TikTok Shop": tiktok_count
+        },
+
+        "low_stock_products": low_stock_products
     }
 
 
