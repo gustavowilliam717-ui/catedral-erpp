@@ -34,30 +34,48 @@ export default function Pricing() {
   }
 
   function getMarketplaceRule(marketplace, price) {
-    if (marketplace === "Shopee") {
-      let fixed = 4;
-      if (price >= 200) fixed = 26;
-      else if (price >= 100) fixed = 20;
-      else if (price >= 80) fixed = 16;
-      else if (price >= 50) fixed = 12;
-      else if (price >= 30) fixed = 8;
-      return { percent: 14, fixed };
+  const sellerType = data.sellerType;
+
+  if (marketplace === "Shopee") {
+    const percent = 14;
+    let fixed = 4;
+
+    if (sellerType === "CPF") {
+      fixed = 7;
     }
 
-    if (marketplace === "Mercado Livre") {
-      return { percent: 17, fixed: price < 79 ? 6.75 : 0 };
-    }
-
-    if (marketplace === "TikTok Shop") {
-      return { percent: 6, fixed: price < 79 ? 2 : 0 };
-    }
-
-    if (marketplace === "Amazon") {
-      return { percent: 16, fixed: 0 };
-    }
-
-    return { percent: 16, fixed: 0 };
+    return {
+      percent,
+      fixed
+    };
   }
+
+  if (marketplace === "Mercado Livre") {
+    return {
+      percent: 17,
+      fixed: price < 79 ? 6.75 : 0
+    };
+  }
+
+  if (marketplace === "TikTok Shop") {
+    return {
+      percent: 6,
+      fixed: price < 79 ? 2 : 0
+    };
+  }
+
+  if (marketplace === "Amazon") {
+    return {
+      percent: 16,
+      fixed: 0
+    };
+  }
+
+  return {
+    percent: 16,
+    fixed: 0
+  };
+}
 
   const cost = num(data.cost);
   const packaging = num(data.packaging);
