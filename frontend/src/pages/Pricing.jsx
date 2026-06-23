@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
 
-export default function Pricing() {
+export default function Pricing({ initialProductId, clearInitialProductId }) {
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState("");
+  const [selectedAdMarketplaces, setSelectedAdMarketplaces] = useState(["Shopee"]);
+  const [publishMessage, setPublishMessage] = useState("");
 
   const [data, setData] = useState({
     sellerType: "CNPJ",
@@ -47,15 +49,22 @@ export default function Pricing() {
     loadProducts();
   }, []);
 
+  useEffect(() => {
+    if (!initialProductId || products.length === 0) return;
+
+    selectProduct(initialProductId, products);
+    clearInitialProductId?.();
+  }, [initialProductId, products]);
+
   async function loadProducts() {
     const response = await API.get("/products");
     setProducts(response.data);
   }
 
-  function selectProduct(id) {
+  function selectProduct(id, productList = products) {
     setSelectedProduct(id);
 
-    const product = products.find((item) => String(item.id) === String(id));
+    const product = productList.find((item) => String(item.id) === String(id));
     if (!product) return;
 
     setData({
@@ -63,6 +72,8 @@ export default function Pricing() {
       cost: product.cost || "",
       marketplace: product.marketplace || "Shopee",
     });
+    setSelectedAdMarketplaces([product.marketplace || "Shopee"]);
+    setPublishMessage("");
   }
 
   function update(field, value) {
@@ -303,6 +314,46 @@ export default function Pricing() {
     compareMarketplace("TikTok Shop"),
     compareMarketplace("Amazon"),
   ];
+
+  function toggleAdMarketplace(marketplace) {
+    setPublishMessage("");
+
+    setSelectedAdMarketplaces((current) =>
+      current.includes(marketplace)
+        ? current.filter((item) => item !== marketplace)
+        : [...current, marketplace]
+    );
+  }
+
+  function selectAllMarketplaces() {
+    setPublishMessage("");
+    setSelectedAdMarketplaces(comparisons.map((item) => item.marketplace));
+  }
+
+  function clearMarketplaces() {
+    setPublishMessage("");
+    setSelectedAdMarketplaces([]);
+  }
+
+  function publishSelectedMarketplaces() {
+    const product = products.find(
+      (item) => String(item.id) === String(selectedProduct)
+    );
+
+    if (!product) {
+      setPublishMessage("Selecione um produto antes de montar os anuncios.");
+      return;
+    }
+
+    if (selectedAdMarketplaces.length === 0) {
+      setPublishMessage("Escolha pelo menos um marketplace para anunciar.");
+      return;
+    }
+
+    setPublishMessage(
+      `Plano de anuncio criado para ${product.name} em ${selectedAdMarketplaces.join(", ")}. A publicacao real sera ligada quando conectarmos as APIs dos marketplaces.`
+    );
+  }
 
   function copySummary() {
     const text = `
@@ -704,6 +755,57 @@ Devolução Fácil: ${money(easyReturnValue)}
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="box marketplace-publish-panel">
+        <div className="publish-header">
+          <div>
+            <span className="section-kicker">Anuncios</span>
+            <h2>Anunciar nos marketplaces</h2>
+            <p>
+              Escolha onde este produto sera anunciado. Por enquanto o ERP monta
+              o plano de anuncio; a publicacao real entra quando conectarmos as
+              APIs de cada marketplace.
+            </p>
+          </div>
+
+          <div className="publish-actions">
+            <button type="button" onClick={selectAllMarketplaces}>
+              Anunciar em todos
+            </button>
+            <button type="button" className="secondary" onClick={clearMarketplaces}>
+              Limpar
+            </button>
+          </div>
+        </div>
+
+        <div className="marketplace-options">
+          {comparisons.map((item) => {
+            const selected = selectedAdMarketplaces.includes(item.marketplace);
+
+            return (
+              <button
+                type="button"
+                key={item.marketplace}
+                className={selected ? "selected" : ""}
+                onClick={() => toggleAdMarketplace(item.marketplace)}
+              >
+                <strong>{item.marketplace}</strong>
+                <span>Preco sugerido: {money(item.price)}</span>
+                <span>Lucro: {money(item.profit)}</span>
+                <em>{item.margin.toFixed(1)}% margem</em>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="publish-footer">
+          <button type="button" onClick={publishSelectedMarketplaces}>
+            Criar plano de anuncio
+          </button>
+
+          {publishMessage && <strong>{publishMessage}</strong>}
+        </div>
       </div>
 
       {estimatedSales > 0 && (

@@ -1,4 +1,6 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime
+from datetime import datetime
+
+from sqlalchemy import Boolean, Column, Integer, String, Float, DateTime
 from .database import Base
 
 
@@ -36,8 +38,7 @@ class Revenue(Base):
     description = Column(String, default="")
     value = Column(Float, default=0)
     category = Column(String, default="Venda")
-    
-from datetime import datetime
+
 
 class PricingHistory(Base):
     __tablename__ = "pricing_history"
@@ -54,3 +55,49 @@ class PricingHistory(Base):
     margin = Column(Float, default=0)
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, default="")
+    email = Column(String, unique=True, index=True)
+    password_hash = Column(String)
+    role = Column(String, default="admin")
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String, unique=True, index=True)
+    user_id = Column(Integer, index=True)
+    expires_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class StoreIntegration(Base):
+    __tablename__ = "store_integrations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    marketplace = Column(String, index=True)
+    store_name = Column(String, index=True)
+    country = Column(String, default="BR")
+    shop_id = Column(String, default="")
+    status = Column(String, default="Pendente")
+    auth_date = Column(String, default="")
+    notes = Column(String, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Setting(Base):
+    __tablename__ = "settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, unique=True, index=True)
+    value = Column(String, default="")
+    group = Column(String, default="general")
+    updated_at = Column(DateTime, default=datetime.utcnow)
