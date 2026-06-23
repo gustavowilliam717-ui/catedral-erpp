@@ -5,3 +5,5 @@ pydantic==2.8.2
 python-multipart==0.0.9
 openai==1.31.0
 openpyxl==3.1.5
+python-dotenv==1.0.1
+psycopg[binary]==3.2.3

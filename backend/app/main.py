@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.models import PricingHistory
 from app.schemas import PricingHistoryCreate
@@ -554,6 +555,16 @@ app.add_middleware(
 @app.get("/")
 def home():
     return {"message": "Catedral ERP rodando com sucesso"}
+
+
+@app.get("/health/database")
+def database_health(db: Session = Depends(get_db)):
+    db.execute(text("SELECT 1"))
+    return {
+        "status": "ok",
+        "database": engine.url.get_backend_name(),
+        "driver": engine.url.get_driver_name(),
+    }
 
 
 @app.get("/auth/bootstrap-status")
