@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import API from "../services/api";
-import { logError } from "../utils/logger";
+import API from "../services/api";
+import { logError } from "../utils/logger";
 
 function createCaptchaCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -201,7 +201,11 @@ export default function Login({ onAuthenticated }) {
       if (response.data.requires_verification) {
         setVerification(response.data);
         setForm((current) => ({ ...current, code: "" }));
-        setMessage("");
+        setMessage(
+          response.data.dev_code
+            ? `Modo desenvolvimento: seu codigo e ${response.data.dev_code}`
+            : ""
+        );
         return;
       }
 
