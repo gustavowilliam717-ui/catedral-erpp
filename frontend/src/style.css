@@ -26,6 +26,7 @@
 
 body {
   margin: 0;
+  overflow-x: hidden;
   background: var(--bg);
   color: var(--ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
@@ -60,18 +61,18 @@ button {
 .app-shell {
   display: flex;
   align-items: center;
-  width: min(1280px, calc(100% - 28px));
-  min-height: 46px;
+  width: min(1180px, calc(100% - 16px));
+  min-height: 42px;
   margin: 0 auto;
-  gap: 18px;
+  gap: 8px;
 }
 
 .app-logo {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-width: 132px;
-  height: 46px;
+  gap: 6px;
+  min-width: 104px;
+  height: 42px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -79,13 +80,17 @@ button {
   font-weight: 800;
 }
 
+.app-logo strong {
+  font-size: 12px;
+}
+
 .rocket-logo {
   position: relative;
   display: grid;
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
   place-items: center;
-  border-radius: 8px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.1);
   overflow: hidden;
 }
@@ -93,8 +98,8 @@ button {
 .rocket-ship {
   position: relative;
   z-index: 2;
-  width: 12px;
-  height: 23px;
+  width: 10px;
+  height: 19px;
   border-radius: 10px 10px 4px 4px;
   background: linear-gradient(180deg, #ffffff 0%, #dcecff 100%);
   transform: translateY(-1px) rotate(36deg);
@@ -137,10 +142,10 @@ button {
 .rocket-flame {
   position: absolute;
   z-index: 1;
-  right: 7px;
-  bottom: 5px;
-  width: 7px;
-  height: 14px;
+  right: 6px;
+  bottom: 4px;
+  width: 6px;
+  height: 11px;
   border-radius: 999px;
   background: linear-gradient(180deg, #fef3c7, #f97316 72%, transparent);
   transform: rotate(36deg);
@@ -150,9 +155,9 @@ button {
 
 .rocket-trail {
   position: absolute;
-  right: 4px;
+  right: 3px;
   bottom: 3px;
-  width: 18px;
+  width: 14px;
   height: 3px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.45);
@@ -162,10 +167,11 @@ button {
 
 .main-nav {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
   align-self: stretch;
   min-width: 0;
-  overflow-x: auto;
+  overflow-x: visible;
   overflow-y: visible;
 }
 
@@ -175,14 +181,14 @@ button {
 }
 
 .main-nav > .nav-module > button {
-  height: 46px;
-  padding: 0 16px;
+  height: 42px;
+  padding: 0 clamp(5px, 0.65vw, 8px);
   border: 0;
   border-left: 1px solid rgba(255, 255, 255, 0.04);
   background: transparent;
   color: #d9e7f5;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -199,7 +205,7 @@ button {
 
 .mega-menu {
   position: absolute;
-  top: 46px;
+  top: 42px;
   left: 0;
   z-index: 80;
   display: none;
@@ -364,27 +370,34 @@ button {
 
 .header-actions {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 6px;
+  gap: 3px;
   margin-left: auto;
 }
 
 .header-actions button {
   display: grid;
-  min-width: 30px;
-  height: 30px;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.06);
   color: white;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
 }
 
 .header-actions .account-button {
   width: auto;
-  padding: 0 10px;
+  max-width: 74px;
+  padding: 0 6px;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.05;
+  text-overflow: ellipsis;
 }
 
 .apps-menu-wrap {
@@ -1136,21 +1149,6 @@ button {
   font-size: 12px;
 }
 
-.register-local-codes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.register-local-codes b {
-  padding: 5px 7px;
-  border-radius: 6px;
-  background: white;
-  color: var(--nav);
-  font-size: 12px;
-}
-
 .terms-check-row {
   display: flex;
   flex-wrap: wrap;
@@ -1184,29 +1182,6 @@ button {
 
 .auth-verification-box p {
   margin: 0;
-}
-
-.auth-dev-code {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px;
-  border: 1px dashed #9ec8ff;
-  border-radius: 7px;
-  background: white;
-}
-
-.auth-dev-code span {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.auth-dev-code strong {
-  color: var(--blue);
-  font-size: 22px;
-  letter-spacing: 0;
 }
 
 .auth-card .auth-back-button {
@@ -2365,6 +2340,57 @@ button {
   background: #f97316;
   color: white;
   font-weight: 900;
+}
+
+.products-page {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  align-items: start;
+}
+
+.products-page > h1 {
+  grid-column: 1 / -1;
+}
+
+.products-page > .import-panel {
+  grid-column: 2;
+  grid-row: 2;
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: 12px;
+}
+
+.products-page > .shopee-sync-guide {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.products-page > .box:nth-of-type(3) {
+  grid-column: 1;
+  grid-row: 2 / span 2;
+}
+
+.products-page > .box:nth-of-type(4) {
+  grid-column: 1 / -1;
+  grid-row: 4;
+}
+
+.products-page .import-actions,
+.products-page .sync-guide-grid {
+  grid-template-columns: 1fr;
+}
+
+.products-page .import-actions input {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.products-page .sync-guide-grid article {
+  min-height: auto;
+  padding: 12px;
+}
+
+.products-page .sync-guide-button {
+  width: 100%;
 }
 
 .shopee-page {
@@ -6391,6 +6417,7 @@ button:disabled {
   .right-rail,
   .executive-rail,
   .module-grid,
+  .products-page,
   .import-panel,
   .sync-guide-grid,
   .integration-grid,
@@ -6399,6 +6426,26 @@ button:disabled {
   .order-flow-grid,
   .api-reference-list {
     grid-template-columns: 1fr;
+  }
+
+  .products-page > .box:nth-of-type(3) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .products-page > .import-panel {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .products-page > .shopee-sync-guide {
+    grid-column: 1;
+    grid-row: 4;
+  }
+
+  .products-page > .box:nth-of-type(4) {
+    grid-column: 1;
+    grid-row: 5;
   }
 
   .kpi-strip,

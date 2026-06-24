@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import API from "../services/api";
-import { logError } from "../utils/logger";
+import API from "../services/api";
+import { logError } from "../utils/logger";
 
 const fallbackImages = [
   "Imagem do anuncio",

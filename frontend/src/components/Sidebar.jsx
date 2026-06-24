@@ -200,10 +200,18 @@ export default function Sidebar({ page, setPage, user, onLogout }) {
               </div>
             )}
           </div>
-          <button type="button" title="Ajuda">
+          <button
+            type="button"
+            title="Ajuda"
+            onClick={() => setPage("account-help")}
+          >
             ?
           </button>
-          <button type="button" title="Alertas">
+          <button
+            type="button"
+            title="Alertas"
+            onClick={() => setPage("stock-low")}
+          >
             !
           </button>
           <div className="account-menu-wrap">

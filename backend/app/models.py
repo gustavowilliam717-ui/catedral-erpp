@@ -63,6 +63,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, default="")
     email = Column(String, unique=True, index=True)
+    phone = Column(String, default="", index=True)
     password_hash = Column(String)
     role = Column(String, default="admin")
     is_active = Column(Boolean, default=True)
@@ -92,6 +93,7 @@ class VerificationCode(Base):
     code_hash = Column(String, default="")
     email_code_hash = Column(String, default="")
     sms_code_hash = Column(String, default="")
+    attempts = Column(Integer, default=0)
     expires_at = Column(DateTime, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

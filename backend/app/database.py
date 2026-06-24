@@ -3,6 +3,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -52,19 +53,45 @@ PRODUCT_COLUMN_MIGRATIONS = {
 }
 
 
-def ensure_product_columns():
+USER_COLUMN_MIGRATIONS = {
+    "phone": "VARCHAR DEFAULT ''",
+}
+
+
+VERIFICATION_CODE_COLUMN_MIGRATIONS = {
+    "attempts": "INTEGER DEFAULT 0",
+}
+
+
+def _ensure_columns(table_name: str, migrations: dict):
     inspector = inspect(engine)
 
-    if not inspector.has_table("products"):
+    if not inspector.has_table(table_name):
         return
 
-    existing = {column["name"] for column in inspector.get_columns("products")}
+    existing = {column["name"] for column in inspector.get_columns(table_name)}
 
     with engine.begin() as connection:
-        for column_name, column_type in PRODUCT_COLUMN_MIGRATIONS.items():
+        for column_name, column_type in migrations.items():
             if column_name in existing:
                 continue
 
-            connection.execute(
-                text(f"ALTER TABLE products ADD COLUMN {column_name} {column_type}")
-            )
+            try:
+                connection.execute(
+                    text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+                )
+            except OperationalError as exc:
+                if "duplicate column" not in str(exc).lower():
+                    raise
+
+
+def ensure_product_columns():
+    _ensure_columns("products", PRODUCT_COLUMN_MIGRATIONS)
+
+
+def ensure_user_columns():
+    _ensure_columns("users", USER_COLUMN_MIGRATIONS)
+
+
+def ensure_verification_code_columns():
+    _ensure_columns("verification_codes", VERIFICATION_CODE_COLUMN_MIGRATIONS)

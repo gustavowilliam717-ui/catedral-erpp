@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import API from "../services/api";
-import { logError } from "../utils/logger";
+import API from "../services/api";
+import { logError } from "../utils/logger";
 
 function createCaptchaCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -175,7 +175,7 @@ export default function Login({ onAuthenticated }) {
     }
 
     if (form.verificationChannel === "phone" && !form.phone) {
-      setMessage("Informe o celular para receber o codigo.");
+      setMessage("Informe o celular cadastrado para receber o codigo.");
       return;
     }
 
@@ -399,7 +399,7 @@ export default function Login({ onAuthenticated }) {
 
               {form.verificationChannel === "phone" && (
                 <input
-                  placeholder="Celular com DDD"
+                  placeholder="Celular cadastrado com DDD"
                   value={form.phone}
                   onChange={(event) => update("phone", event.target.value)}
                 />
@@ -461,16 +461,6 @@ export default function Login({ onAuthenticated }) {
                   <strong>Codigos enviados</strong>
                   <span>Email: {registerCodeInfo.email}</span>
                   <span>SMS: {registerCodeInfo.phone}</span>
-                  {(registerCodeInfo.email_dev_code || registerCodeInfo.sms_dev_code) && (
-                    <div className="register-local-codes">
-                      {registerCodeInfo.email_dev_code && (
-                        <b>Email local: {registerCodeInfo.email_dev_code}</b>
-                      )}
-                      {registerCodeInfo.sms_dev_code && (
-                        <b>SMS local: {registerCodeInfo.sms_dev_code}</b>
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -509,13 +499,6 @@ export default function Login({ onAuthenticated }) {
                 </strong>
                 . Ele expira em {verification.expires_in_minutes} minutos.
               </p>
-
-              {verification.dev_code && (
-                <div className="auth-dev-code">
-                  <span>Codigo local</span>
-                  <strong>{verification.dev_code}</strong>
-                </div>
-              )}
 
               <input
                 placeholder="Codigo de 6 digitos"

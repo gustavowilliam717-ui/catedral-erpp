@@ -29,12 +29,35 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from openai import OpenAI
 from app.models import Product
 
-from .database import Base, engine, ensure_product_columns, get_db
+from .database import (
+    Base,
+    engine,
+    ensure_product_columns,
+    ensure_user_columns,
+    ensure_verification_code_columns,
+    get_db,
+)
 from . import models, schemas
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 security = HTTPBearer(auto_error=False)
+
+# Modo de desenvolvimento: quando ativo e sem SMTP/SMS configurados,
+# os codigos de verificacao sao retornados na resposta em vez de enviados.
+AUTH_DEV_MODE = os.getenv("AUTH_DEV_MODE", "false").lower() == "true"
+
+# Numero maximo de tentativas erradas antes de invalidar o desafio.
+MAX_VERIFICATION_ATTEMPTS = 5
+
+
+def get_allowed_origins():
+    raw = os.getenv("ALLOWED_ORIGINS", "").strip()
+
+    if not raw or raw == "*":
+        return ["*"]
+
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
 class ChatRequest(BaseModel):
     message: str
@@ -271,6 +294,7 @@ def serialize_user(user: models.User):
         "id": user.id,
         "name": user.name,
         "email": user.email,
+        "phone": user.phone or "",
         "role": user.role,
     }
 
@@ -344,10 +368,6 @@ def delete_expired_verification_codes(db: Session):
     db.commit()
 
 
-def expose_dev_code(code: str):
-    return code if os.getenv("SHOW_VERIFICATION_CODE", "true").lower() == "true" else None
-
-
 def send_email_code(email: str, code: str, purpose: str):
     smtp_host = os.getenv("SMTP_HOST")
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
@@ -358,7 +378,13 @@ def send_email_code(email: str, code: str, purpose: str):
     smtp_ssl = os.getenv("SMTP_SSL", "false").lower() == "true" or smtp_port == 465
 
     if not smtp_host or not smtp_from:
-        return False
+        if AUTH_DEV_MODE:
+            return False
+
+        raise HTTPException(
+            status_code=503,
+            detail="Envio de email nao configurado. Configure SMTP_HOST e SMTP_FROM no backend/.env.",
+        )
 
     message = EmailMessage()
     message["Subject"] = "Codigo de verificacao Catedral ERP"
@@ -388,6 +414,8 @@ def send_email_code(email: str, code: str, purpose: str):
 
             server.send_message(message)
         return True
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Falha ao enviar email: {exc}")
 
@@ -398,7 +426,16 @@ def send_sms_code(phone: str, code: str, purpose: str):
     from_number = os.getenv("TWILIO_FROM_NUMBER")
 
     if not account_sid or not auth_token or not from_number:
-        return False
+        if AUTH_DEV_MODE:
+            return False
+
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Envio de SMS nao configurado. Configure TWILIO_ACCOUNT_SID, "
+                "TWILIO_AUTH_TOKEN e TWILIO_FROM_NUMBER no backend/.env."
+            ),
+        )
 
     payload = urllib.parse.urlencode(
         {
@@ -418,7 +455,12 @@ def send_sms_code(phone: str, code: str, purpose: str):
 
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
-            return 200 <= response.status < 300
+            if 200 <= response.status < 300:
+                return True
+
+            raise HTTPException(status_code=502, detail="Falha ao enviar SMS pelo provedor")
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Falha ao enviar SMS: {exc}")
 
@@ -436,11 +478,16 @@ def create_verification_challenge(user: models.User, payload, db: Session):
 
     if channel == "phone":
         target = normalize_phone(payload.phone)
+        if not user.phone:
+            raise HTTPException(status_code=400, detail="Este usuario nao possui celular cadastrado")
+
+        if target != user.phone:
+            raise HTTPException(status_code=400, detail="Informe o celular cadastrado nesta conta")
 
     delete_expired_verification_codes(db)
     code = create_six_digit_code()
     challenge_id = secrets.token_urlsafe(32)
-    sent = send_code_by_channel(channel, target, code, "login",)
+    sent = send_code_by_channel(channel, target, code, "login")
 
     db.add(
         models.VerificationCode(
@@ -456,17 +503,19 @@ def create_verification_challenge(user: models.User, payload, db: Session):
     )
     db.commit()
 
-    # Enquanto nao houver provedor de email/SMS conectado, o codigo fica
-    # disponivel no retorno local para permitir testar o fluxo completo.
-    return {
+    response = {
         "requires_verification": True,
         "challenge_id": challenge_id,
         "channel": channel,
         "target": target,
         "expires_in_minutes": 10,
-        "sent": sent,
-        "dev_code": expose_dev_code(code),
+        "sent": bool(sent),
     }
+
+    if AUTH_DEV_MODE and not sent:
+        response["dev_code"] = code
+
+    return response
 
 
 def create_registration_code(payload: RegisterCodeRequest, db: Session):
@@ -499,16 +548,22 @@ def create_registration_code(payload: RegisterCodeRequest, db: Session):
     )
     db.commit()
 
-    return {
-        "message": "Codigos de verificacao gerados",
+    result = {
+        "message": "Codigos de verificacao enviados",
         "email": email,
         "phone": phone,
-        "email_sent": email_sent,
-        "sms_sent": sms_sent,
+        "email_sent": bool(email_sent),
+        "sms_sent": bool(sms_sent),
         "expires_in_minutes": 10,
-        "email_dev_code": expose_dev_code(email_code),
-        "sms_dev_code": expose_dev_code(sms_code),
     }
+
+    if AUTH_DEV_MODE:
+        if not email_sent:
+            result["dev_email_code"] = email_code
+        if not sms_sent:
+            result["dev_sms_code"] = sms_code
+
+    return result
 
 
 def validate_registration_codes(
@@ -549,11 +604,25 @@ def validate_registration_codes(
     if not clean_email_code or not clean_sms_code:
         raise HTTPException(status_code=400, detail="Informe os codigos recebidos por email e SMS")
 
+    def register_failed_attempt(detail: str):
+        registration.attempts = (registration.attempts or 0) + 1
+
+        if registration.attempts >= MAX_VERIFICATION_ATTEMPTS:
+            db.delete(registration)
+            db.commit()
+            raise HTTPException(
+                status_code=429,
+                detail="Muitas tentativas. Solicite novos codigos de verificacao.",
+            )
+
+        db.commit()
+        raise HTTPException(status_code=400, detail=detail)
+
     if not verify_verification_code(clean_email_code, registration.email_code_hash):
-        raise HTTPException(status_code=400, detail="Codigo de email invalido")
+        register_failed_attempt("Codigo de email invalido")
 
     if not verify_verification_code(clean_sms_code, registration.sms_code_hash):
-        raise HTTPException(status_code=400, detail="Codigo de SMS invalido")
+        register_failed_attempt("Codigo de SMS invalido")
 
 
 def finish_verified_login(challenge_id: str, code: str, db: Session):
@@ -575,6 +644,17 @@ def finish_verified_login(challenge_id: str, code: str, db: Session):
         raise HTTPException(status_code=400, detail="Codigo de verificacao expirado")
 
     if not verify_verification_code(code, challenge.code_hash):
+        challenge.attempts = (challenge.attempts or 0) + 1
+
+        if challenge.attempts >= MAX_VERIFICATION_ATTEMPTS:
+            db.delete(challenge)
+            db.commit()
+            raise HTTPException(
+                status_code=429,
+                detail="Muitas tentativas. Solicite um novo codigo de verificacao.",
+            )
+
+        db.commit()
         raise HTTPException(status_code=400, detail="Codigo de verificacao invalido")
 
     user = (
@@ -624,12 +704,14 @@ def require_user(
 
 Base.metadata.create_all(bind=engine)
 ensure_product_columns()
+ensure_user_columns()
+ensure_verification_code_columns()
 
 app = FastAPI(title="Catedral ERP")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=get_allowed_origins(),
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -691,6 +773,7 @@ def auth_register(payload: RegisterRequest, db: Session = Depends(get_db)):
     user = models.User(
         name=payload.name.strip() or "Administrador",
         email=email,
+        phone=normalize_phone(payload.phone),
         password_hash=hash_password(payload.password),
         role="admin",
     )
@@ -716,12 +799,18 @@ def auth_setup(payload: SetupRequest, db: Session = Depends(get_db)):
     if db.query(models.User).count() > 0:
         raise HTTPException(status_code=400, detail="Setup inicial ja foi feito")
 
+    email = normalize_email(payload.email)
+
     if len(payload.password) < 6:
         raise HTTPException(status_code=400, detail="A senha precisa ter ao menos 6 caracteres")
 
+    verification_channel = normalize_verification_channel(payload.verification_channel)
+    phone = normalize_phone(payload.phone) if verification_channel == "phone" else ""
+
     user = models.User(
         name=payload.name.strip() or "Administrador",
-        email=payload.email.lower().strip(),
+        email=email,
+        phone=phone,
         password_hash=hash_password(payload.password),
         role="admin",
     )
@@ -729,7 +818,13 @@ def auth_setup(payload: SetupRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    return create_verification_challenge(user, payload, db)
+    try:
+        return create_verification_challenge(user, payload, db)
+    except Exception:
+        db.rollback()
+        db.query(models.User).filter(models.User.id == user.id).delete(synchronize_session=False)
+        db.commit()
+        raise
 
 
 @app.post("/auth/login")
@@ -793,8 +888,11 @@ def chat(request: ChatRequest, user: models.User = Depends(require_user)):
 
         answer = (completion.choices[0].message.content or "").strip()
         return {"answer": answer}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise HTTPException(
+            status_code=502,
+            detail="Nao foi possivel obter resposta do assistente no momento.",
+        )
 
 
 @app.get("/dashboard")

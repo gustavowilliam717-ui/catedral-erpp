@@ -16,17 +16,22 @@ import AppDownload from "./pages/AppDownload";
 import DataSpace from "./pages/DataSpace";
 import ImportShopee from "./pages/ImportShopee";
 import Login from "./pages/Login";
+import MarketplaceFees from "./pages/MarketplaceFees";
 import ModulePlaceholder from "./pages/ModulePlaceholder";
 import OrderSettings from "./pages/OrderSettings";
 import Plans from "./pages/Plans";
+import PricingHistory from "./pages/PricingHistory";
+import PricingRules from "./pages/PricingRules";
+import ProductCategories from "./pages/ProductCategories";
 import ProductImporter from "./pages/ProductImporter";
+import ProductMapping from "./pages/ProductMapping";
 import SacReviews from "./pages/SacReviews";
 import Purchases from "./pages/Purchases";
 import ShippingSettings from "./pages/ShippingSettings";
 import ShopeeIntegration from "./pages/ShopeeIntegration";
 import StoreIntegrations from "./pages/StoreIntegrations";
-import API from "./services/api";
-import { logError } from "./utils/logger";
+import API from "./services/api";
+import { logError } from "./utils/logger";
 
 import "./style.css";
 
@@ -43,6 +48,8 @@ function App() {
   const knownPages = [
     "dashboard",
     "products",
+    "product-mapping",
+    "product-categories",
     "finance",
     "cash-flow",
     "accounts-payable",
@@ -54,6 +61,9 @@ function App() {
     "ncm-stock-report",
     "taxes",
     "pricing",
+    "pricing-history-view",
+    "marketplace-fees",
+    "pricing-rules",
     "purchase-suggestions",
     "purchase-orders",
     "purchase-orders-to-purchase",
@@ -65,6 +75,15 @@ function App() {
     "suppliers",
     "supplier-relations",
     "stock",
+    "marketplace-stock",
+    "stock-low",
+    "stock-report",
+    "stock-shopee",
+    "stock-mercado-livre",
+    "stock-shein",
+    "stock-tiktok",
+    "stock-amazon",
+    "stock-reposition-rules",
     "chat",
     "plans",
     "app-download",
@@ -161,6 +180,18 @@ function App() {
     "ncm-stock-report",
     "taxes",
   ];
+  const stockPages = [
+    "stock",
+    "marketplace-stock",
+    "stock-low",
+    "stock-report",
+    "stock-shopee",
+    "stock-mercado-livre",
+    "stock-shein",
+    "stock-tiktok",
+    "stock-amazon",
+    "stock-reposition-rules",
+  ];
 
   useEffect(() => {
     async function validateSession() {
@@ -236,6 +267,10 @@ function App() {
             setPricingProductId={setPricingProductId}
           />
         )}
+        {page === "product-mapping" && <ProductMapping setPage={setPage} />}
+        {page === "product-categories" && (
+          <ProductCategories setPage={setPage} />
+        )}
         {financePages.includes(page) && (
           <Finance activePage={page} setPage={setPage} />
         )}
@@ -248,7 +283,12 @@ function App() {
             clearInitialProductId={() => setPricingProductId("")}
           />
         )}
-        {page === "stock" && <Stock />}
+        {page === "pricing-history-view" && <PricingHistory />}
+        {page === "marketplace-fees" && <MarketplaceFees />}
+        {page === "pricing-rules" && <PricingRules setPage={setPage} />}
+        {stockPages.includes(page) && (
+          <Stock activePage={page} setPage={setPage} />
+        )}
         {page === "chat" && <Chat />}
         {page === "plans" && <Plans />}
         {page === "app-download" && <AppDownload />}

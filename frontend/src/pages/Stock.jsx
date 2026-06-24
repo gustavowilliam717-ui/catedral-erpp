@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import API from "../services/api";
-import { logError } from "../utils/logger";
+import API from "../services/api";
+import { logError } from "../utils/logger";
 
 const marketplaceOptions = [
   "Todos",
@@ -12,6 +12,72 @@ const marketplaceOptions = [
   "Magalu",
 ];
 
+const stockPageConfig = {
+  stock: {
+    kicker: "Estoque ERP",
+    title: "Lista de estoque por canal",
+    description:
+      "Controle saldos cadastrados no ERP, estoque minimo e valor potencial por marketplace.",
+  },
+  "marketplace-stock": {
+    kicker: "Marketplaces",
+    title: "Saldo ERP por marketplace",
+    description:
+      "Veja o saldo cadastrado no ERP agrupado por canal de venda.",
+  },
+  "stock-low": {
+    kicker: "Reposicao",
+    title: "Produtos com estoque baixo",
+    description:
+      "Produtos cujo saldo atual esta igual ou abaixo do estoque minimo cadastrado.",
+    lowOnly: true,
+  },
+  "stock-report": {
+    kicker: "Relatorio",
+    title: "Relatorio de estoque",
+    description:
+      "Resumo operacional do estoque cadastrado, valores e alertas de reposicao.",
+    mode: "report",
+  },
+  "stock-shopee": {
+    kicker: "Shopee",
+    title: "Estoque ERP - Shopee",
+    description: "Produtos cadastrados com marketplace Shopee.",
+    marketplace: "Shopee",
+  },
+  "stock-mercado-livre": {
+    kicker: "Mercado Livre",
+    title: "Estoque ERP - Mercado Livre",
+    description: "Produtos cadastrados com marketplace Mercado Livre.",
+    marketplace: "Mercado Livre",
+  },
+  "stock-shein": {
+    kicker: "Shein",
+    title: "Estoque ERP - Shein",
+    description: "Produtos cadastrados com marketplace Shein.",
+    marketplace: "Shein",
+  },
+  "stock-tiktok": {
+    kicker: "TikTok Shop",
+    title: "Estoque ERP - TikTok Shop",
+    description: "Produtos cadastrados com marketplace TikTok Shop.",
+    marketplace: "TikTok Shop",
+  },
+  "stock-amazon": {
+    kicker: "Amazon",
+    title: "Estoque ERP - Amazon",
+    description: "Produtos cadastrados com marketplace Amazon.",
+    marketplace: "Amazon",
+  },
+  "stock-reposition-rules": {
+    kicker: "Reposicao",
+    title: "Regras de reposicao",
+    description:
+      "Cadastre regras locais de estoque minimo, alvo e lead time por marketplace.",
+    mode: "rules",
+  },
+};
+
 function formatCurrency(value) {
   return Number(value || 0).toLocaleString("pt-BR", {
     style: "currency",
@@ -19,14 +85,31 @@ function formatCurrency(value) {
   });
 }
 
+function exportCsv(filename, rows) {
+  if (!rows.length) return;
+
+  const headers = Object.keys(rows[0]);
+  const escape = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+  const csv = [
+    headers.join(";"),
+    ...rows.map((row) => headers.map((header) => escape(row[header])).join(";")),
+  ].join("\n");
+  const blob = new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 function getReserved(product) {
-  return Math.min(Number(product.stock || 0), product.id % 4);
+  return Number(product.reserved_stock || 0);
 }
 
 function getMarketplaceStock(product) {
-  const stock = Number(product.stock || 0);
-  const variation = product.id % 3 === 0 ? -2 : product.id % 5 === 0 ? 3 : 0;
-  return Math.max(0, stock + variation);
+  return Number(product.marketplace_stock ?? product.stock ?? 0);
 }
 
 function getStockStatus(product) {
@@ -40,15 +123,29 @@ function getStockStatus(product) {
   return { label: "Sincronizado", tone: "success" };
 }
 
-export default function Stock() {
+function getStockView(activePage) {
+  return stockPageConfig[activePage] || stockPageConfig.stock;
+}
+
+export default function Stock({ activePage = "stock", setPage }) {
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState("");
   const [marketplace, setMarketplace] = useState("Todos");
   const [statusFilter, setStatusFilter] = useState("Todos");
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [message, setMessage] = useState("");
+  const view = getStockView(activePage);
 
   useEffect(() => {
     loadProducts();
   }, []);
+
+  useEffect(() => {
+    setMarketplace(view.marketplace || "Todos");
+    setStatusFilter(view.status || "Todos");
+    setSelectedIds([]);
+    setMessage("");
+  }, [activePage]);
 
   async function loadProducts() {
     try {
@@ -57,6 +154,11 @@ export default function Stock() {
     } catch (error) {
       logError(error);
     }
+  }
+
+  async function refreshStock() {
+    await loadProducts();
+    setMessage("Saldos atualizados com os dados cadastrados no ERP.");
   }
 
   const rows = useMemo(() => {
@@ -78,10 +180,35 @@ export default function Stock() {
           marketplace === "Todos" || product.marketplace === marketplace;
         const matchesStatus =
           statusFilter === "Todos" || product.status.label === statusFilter;
+        const matchesLowOnly =
+          !view.lowOnly ||
+          Number(product.stock || 0) <= Number(product.minimum_stock || 0);
 
-        return matchesSearch && matchesMarketplace && matchesStatus;
+        return matchesSearch && matchesMarketplace && matchesStatus && matchesLowOnly;
       });
-  }, [products, search, marketplace, statusFilter]);
+  }, [products, search, marketplace, statusFilter, activePage]);
+
+  const selectedRows = rows.filter((product) => selectedIds.includes(product.id));
+  const allVisibleSelected =
+    rows.length > 0 && rows.every((product) => selectedIds.includes(product.id));
+
+  function toggleProduct(id) {
+    setSelectedIds((current) =>
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id]
+    );
+  }
+
+  function toggleAllVisible() {
+    const ids = rows.map((product) => product.id);
+
+    setSelectedIds((current) =>
+      allVisibleSelected
+        ? current.filter((id) => !ids.includes(id))
+        : Array.from(new Set([...current, ...ids]))
+    );
+  }
 
   const metrics = useMemo(() => {
     const totalStock = products.reduce(
@@ -120,26 +247,56 @@ export default function Stock() {
       return { marketplace: option, items: items.length, stock, value };
     });
 
+  if (view.mode === "rules") {
+    return <StockRepositionRules setPage={setPage} />;
+  }
+
   return (
     <div className="page marketplace-stock-page">
       <section className="stock-command">
         <div>
-          <span className="section-kicker">Estoque Marketplace</span>
-          <h1>Lista de estoque por canal</h1>
-          <p>
-            Controle saldo publicado, reservas de pedidos, divergencias e
-            sincronizacao dos produtos vendidos nos marketplaces conectados.
-          </p>
+          <span className="section-kicker">{view.kicker}</span>
+          <h1>{view.title}</h1>
+          <p>{view.description}</p>
         </div>
 
         <div className="stock-command-actions">
-          <button type="button">Importar & Exportar</button>
-          <button type="button">Sincronizar Estoque</button>
-          <button type="button" className="secondary">
+          <button
+            type="button"
+            onClick={() =>
+              exportCsv(
+                "estoque-catedral.csv",
+                rows.map((product) => ({
+                  sku: product.sku,
+                  produto: product.name,
+                  marketplace: product.marketplace,
+                  categoria: product.category,
+                  estoque: product.stock,
+                  estoque_minimo: product.minimum_stock,
+                  reservado: product.reserved,
+                  disponivel: Math.max(
+                    0,
+                    Number(product.stock || 0) - Number(product.reserved || 0)
+                  ),
+                  status: product.status.label,
+                }))
+              )
+            }
+          >
+            Exportar CSV
+          </button>
+          <button type="button" onClick={refreshStock}>Atualizar saldos</button>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => setPage?.("stock-reposition-rules")}
+          >
             Regras de Reposicao
           </button>
         </div>
       </section>
+
+      {message && <strong className="bulk-message">{message}</strong>}
 
       <section className="stock-kpi-grid">
         <article>
@@ -222,6 +379,14 @@ export default function Stock() {
         </div>
       </section>
 
+      {view.mode === "report" && (
+        <StockReport
+          products={products}
+          metrics={metrics}
+          marketplaceSummary={marketplaceSummary}
+        />
+      )}
+
       <section className="box stock-list-card">
         <div className="table-header">
           <div>
@@ -232,10 +397,32 @@ export default function Stock() {
           </div>
 
           <div className="stock-table-actions">
-            <button type="button" className="secondary">
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setPage?.("products")}
+            >
               Editar em Massa
             </button>
-            <button type="button">Acoes em Massa</button>
+            <button
+              type="button"
+              disabled={selectedRows.length === 0}
+              onClick={() =>
+                exportCsv(
+                  "estoque-selecionado.csv",
+                  selectedRows.map((product) => ({
+                    sku: product.sku,
+                    produto: product.name,
+                    marketplace: product.marketplace,
+                    estoque: product.stock,
+                    estoque_minimo: product.minimum_stock,
+                    status: product.status.label,
+                  }))
+                )
+              }
+            >
+              Exportar Selecionados
+            </button>
           </div>
         </div>
 
@@ -243,7 +430,11 @@ export default function Stock() {
           <thead>
             <tr>
               <th>
-                <input type="checkbox" />
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={toggleAllVisible}
+                />
               </th>
               <th>SKU</th>
               <th>Produto</th>
@@ -265,7 +456,11 @@ export default function Stock() {
               return (
                 <tr key={product.id}>
                   <td>
-                    <input type="checkbox" />
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(product.id)}
+                      onChange={() => toggleProduct(product.id)}
+                    />
                   </td>
                   <td>{product.sku || "-"}</td>
                   <td>
@@ -294,8 +489,25 @@ export default function Stock() {
                     </span>
                   </td>
                   <td>
-                    <button type="button">Sincronizar</button>
-                    <button type="button" className="secondary">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setMessage(
+                          `${product.sku || product.name} atualizado com o saldo cadastrado no ERP.`
+                        )
+                      }
+                    >
+                      Atualizar
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() =>
+                        setMessage(
+                          `Historico local: saldo atual ${stock}, estoque minimo ${product.minimum_stock || 0}.`
+                        )
+                      }
+                    >
                       Historico
                     </button>
                   </td>
@@ -306,6 +518,280 @@ export default function Stock() {
             {rows.length === 0 && (
               <tr>
                 <td colSpan="10">Nenhum produto encontrado para esse filtro.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
+    </div>
+  );
+}
+
+function StockReport({ products, metrics, marketplaceSummary }) {
+  const categorySummary = Object.values(
+    products.reduce((acc, product) => {
+      const key = product.category?.trim() || "Sem categoria";
+      const current = acc[key] || {
+        category: key,
+        items: 0,
+        stock: 0,
+        value: 0,
+        lowStock: 0,
+      };
+      const stock = Number(product.stock || 0);
+      const minimum = Number(product.minimum_stock || 0);
+
+      current.items += 1;
+      current.stock += stock;
+      current.value += Number(product.cost || 0) * stock;
+      if (stock <= minimum) current.lowStock += 1;
+      acc[key] = current;
+      return acc;
+    }, {})
+  ).sort((a, b) => b.value - a.value);
+
+  return (
+    <section className="box">
+      <div className="section-heading">
+        <div>
+          <span className="section-kicker">Resumo</span>
+          <h2>Indicadores do estoque</h2>
+        </div>
+      </div>
+
+      <div className="finance-summary-strip">
+        <article className="neutral">
+          <span>SKUs cadastrados</span>
+          <strong>{products.length}</strong>
+          <small>Produtos no ERP</small>
+        </article>
+        <article className="positive">
+          <span>Saldo total</span>
+          <strong>{metrics.totalStock}</strong>
+          <small>Unidades cadastradas</small>
+        </article>
+        <article className={metrics.lowStock > 0 ? "negative" : "positive"}>
+          <span>Estoque baixo</span>
+          <strong>{metrics.lowStock}</strong>
+          <small>Produtos para revisar</small>
+        </article>
+      </div>
+
+      <div className="finance-main-grid">
+        <div className="finance-table-card">
+          <h2>Por categoria</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Categoria</th>
+                <th>SKUs</th>
+                <th>Saldo</th>
+                <th>Valor em estoque</th>
+                <th>Estoque baixo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {categorySummary.map((item) => (
+                <tr key={item.category}>
+                  <td>{item.category}</td>
+                  <td>{item.items}</td>
+                  <td>{item.stock}</td>
+                  <td>{formatCurrency(item.value)}</td>
+                  <td>{item.lowStock}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="finance-table-card">
+          <h2>Por marketplace</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Marketplace</th>
+                <th>SKUs</th>
+                <th>Saldo</th>
+                <th>Venda potencial</th>
+              </tr>
+            </thead>
+            <tbody>
+              {marketplaceSummary.map((item) => (
+                <tr key={item.marketplace}>
+                  <td>{item.marketplace}</td>
+                  <td>{item.items}</td>
+                  <td>{item.stock}</td>
+                  <td>{formatCurrency(item.value)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function StockRepositionRules({ setPage }) {
+  const emptyRule = {
+    marketplace: "Todos",
+    minimumStock: "10",
+    targetStock: "30",
+    leadTime: "7",
+    supplier: "",
+  };
+  const [rules, setRules] = useState([]);
+  const [form, setForm] = useState(emptyRule);
+  const [message, setMessage] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    loadRules();
+  }, []);
+
+  async function loadRules() {
+    try {
+      const response = await API.get("/settings?group=stock_rules");
+      const stored = response.data.find((item) => item.key === "reposition_rules");
+
+      setRules(stored?.value ? JSON.parse(stored.value) : []);
+    } catch (error) {
+      logError(error);
+      setMessage("Nao foi possivel carregar as regras.");
+    }
+  }
+
+  async function saveRules(nextRules, successMessage) {
+    try {
+      setIsSaving(true);
+      await API.post("/settings", {
+        key: "reposition_rules",
+        value: JSON.stringify(nextRules),
+        group: "stock_rules",
+      });
+      setRules(nextRules);
+      setMessage(successMessage);
+    } catch (error) {
+      logError(error);
+      setMessage("Nao foi possivel salvar as regras.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function update(field, value) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function addRule(event) {
+    event.preventDefault();
+
+    const nextRule = {
+      id: Date.now(),
+      marketplace: form.marketplace,
+      minimumStock: Number(form.minimumStock || 0),
+      targetStock: Number(form.targetStock || 0),
+      leadTime: Number(form.leadTime || 0),
+      supplier: form.supplier.trim(),
+    };
+
+    saveRules([nextRule, ...rules], "Regra de reposicao criada.");
+    setForm(emptyRule);
+  }
+
+  function removeRule(id) {
+    saveRules(
+      rules.filter((rule) => rule.id !== id),
+      "Regra de reposicao removida."
+    );
+  }
+
+  return (
+    <div className="page marketplace-stock-page">
+      <section className="settings-title-card">
+        <div>
+          <span className="section-kicker">Estoque</span>
+          <h1>Regras de reposicao</h1>
+          <p>
+            Cadastre parametros locais para orientar sugestoes de compra e
+            revisao de estoque minimo por marketplace.
+          </p>
+        </div>
+        <button type="button" onClick={() => setPage?.("stock-low")}>
+          Ver estoque baixo
+        </button>
+      </section>
+
+      <form className="box" onSubmit={addRule}>
+        <h2>Nova regra</h2>
+        <div className="form-grid">
+          <select
+            value={form.marketplace}
+            onChange={(event) => update("marketplace", event.target.value)}
+          >
+            {marketplaceOptions.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </select>
+          <input
+            placeholder="Estoque minimo"
+            value={form.minimumStock}
+            onChange={(event) => update("minimumStock", event.target.value)}
+          />
+          <input
+            placeholder="Estoque alvo"
+            value={form.targetStock}
+            onChange={(event) => update("targetStock", event.target.value)}
+          />
+          <input
+            placeholder="Lead time em dias"
+            value={form.leadTime}
+            onChange={(event) => update("leadTime", event.target.value)}
+          />
+          <input
+            placeholder="Fornecedor preferencial"
+            value={form.supplier}
+            onChange={(event) => update("supplier", event.target.value)}
+          />
+          <button type="submit" disabled={isSaving}>
+            Criar regra
+          </button>
+        </div>
+        {message && <strong className="bulk-message">{message}</strong>}
+      </form>
+
+      <section className="box">
+        <h2>Regras cadastradas</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Marketplace</th>
+              <th>Estoque minimo</th>
+              <th>Estoque alvo</th>
+              <th>Lead time</th>
+              <th>Fornecedor</th>
+              <th>Acoes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rules.map((rule) => (
+              <tr key={rule.id}>
+                <td>{rule.marketplace}</td>
+                <td>{rule.minimumStock}</td>
+                <td>{rule.targetStock}</td>
+                <td>{rule.leadTime} dias</td>
+                <td>{rule.supplier || "-"}</td>
+                <td>
+                  <button type="button" onClick={() => removeRule(rule.id)}>
+                    Remover
+                  </button>
+                </td>
+              </tr>
+            ))}
+
+            {rules.length === 0 && (
+              <tr>
+                <td colSpan="6">Nenhuma regra cadastrada.</td>
               </tr>
             )}
           </tbody>
