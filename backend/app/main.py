@@ -13,6 +13,7 @@ import base64
 import hashlib
 import hmac
 import io
+import json
 import os
 import re
 import secrets
@@ -420,7 +421,11 @@ def send_email_code(email: str, code: str, purpose: str):
         raise HTTPException(status_code=502, detail=f"Falha ao enviar email: {exc}")
 
 
-def send_sms_code(phone: str, code: str, purpose: str):
+def build_sms_body(code: str, purpose: str):
+    return f"Catedral ERP: seu codigo para {purpose} e {code}. Expira em 10 minutos."
+
+
+def send_twilio_sms_code(phone: str, code: str, purpose: str):
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
     from_number = os.getenv("TWILIO_FROM_NUMBER")
@@ -441,7 +446,7 @@ def send_sms_code(phone: str, code: str, purpose: str):
         {
             "To": phone_to_e164(phone),
             "From": from_number,
-            "Body": f"Catedral ERP: seu codigo para {purpose} e {code}. Expira em 10 minutos.",
+            "Body": build_sms_body(code, purpose),
         }
     ).encode("utf-8")
     request = urllib.request.Request(
@@ -463,6 +468,63 @@ def send_sms_code(phone: str, code: str, purpose: str):
         raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Falha ao enviar SMS: {exc}")
+
+
+def send_zenvia_sms_code(phone: str, code: str, purpose: str):
+    api_token = os.getenv("ZENVIA_API_TOKEN")
+    sender = os.getenv("ZENVIA_FROM")
+    api_url = os.getenv("ZENVIA_API_URL", "https://api.zenvia.com/v2/channels/sms/messages")
+
+    if not api_token or not sender:
+        if AUTH_DEV_MODE:
+            return False
+
+        raise HTTPException(
+            status_code=503,
+            detail="Envio de SMS nao configurado. Configure ZENVIA_API_TOKEN e ZENVIA_FROM no backend/.env.",
+        )
+
+    payload = json.dumps(
+        {
+            "from": sender,
+            "to": phone_to_e164(phone),
+            "contents": [
+                {
+                    "type": "text",
+                    "text": build_sms_body(code, purpose),
+                }
+            ],
+        }
+    ).encode("utf-8")
+    request = urllib.request.Request(api_url, data=payload, method="POST")
+    request.add_header("Content-Type", "application/json")
+    request.add_header("X-API-TOKEN", api_token)
+
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            if 200 <= response.status < 300:
+                return True
+
+            raise HTTPException(status_code=502, detail="Falha ao enviar SMS pela Zenvia")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Falha ao enviar SMS pela Zenvia: {exc}")
+
+
+def send_sms_code(phone: str, code: str, purpose: str):
+    sms_provider = os.getenv("SMS_PROVIDER", "twilio").lower().strip()
+
+    if sms_provider == "zenvia":
+        return send_zenvia_sms_code(phone, code, purpose)
+
+    if sms_provider == "twilio":
+        return send_twilio_sms_code(phone, code, purpose)
+
+    raise HTTPException(
+        status_code=503,
+        detail="Provedor de SMS invalido. Use SMS_PROVIDER=twilio ou SMS_PROVIDER=zenvia.",
+    )
 
 
 def send_code_by_channel(channel: str, target: str, code: str, purpose: str):
