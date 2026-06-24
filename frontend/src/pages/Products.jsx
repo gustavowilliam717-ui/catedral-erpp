@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
+import { logError } from "../utils/logger";
 
 export default function Products({ setPage, setPricingProductId }) {
   const emptyForm = {
@@ -43,8 +44,12 @@ export default function Products({ setPage, setPricingProductId }) {
   }, []);
 
   async function loadProducts() {
-    const response = await API.get("/products");
-    setProducts(response.data);
+    try {
+      const response = await API.get("/products");
+      setProducts(response.data || []);
+    } catch (error) {
+      logError(error);
+    }
   }
 
   function resetSelection() {
@@ -70,24 +75,29 @@ export default function Products({ setPage, setPricingProductId }) {
       marketplace: form.marketplace
     };
 
-    let savedProduct;
+    try {
+      let savedProduct;
 
-    if (editingId) {
-      const response = await API.put("/products/" + editingId, data);
-      savedProduct = response.data;
-    } else {
-      const response = await API.post("/products", data);
-      savedProduct = response.data;
-    }
+      if (editingId) {
+        const response = await API.put("/products/" + editingId, data);
+        savedProduct = response.data;
+      } else {
+        const response = await API.post("/products", data);
+        savedProduct = response.data;
+      }
 
-    setForm(emptyForm);
-    setEditingId(null);
-    await loadProducts();
+      setForm(emptyForm);
+      setEditingId(null);
+      await loadProducts();
 
-    if (goToPricingAfterSave && savedProduct?.id) {
-      setPricingProductId(String(savedProduct.id));
-      setGoToPricingAfterSave(false);
-      setPage("pricing");
+      if (goToPricingAfterSave && savedProduct?.id) {
+        setPricingProductId(String(savedProduct.id));
+        setGoToPricingAfterSave(false);
+        setPage("pricing");
+      }
+    } catch (error) {
+      logError(error);
+      window.alert("Nao foi possivel salvar o produto. Verifique os dados e tente novamente.");
     }
   }
 
@@ -120,8 +130,13 @@ export default function Products({ setPage, setPricingProductId }) {
   async function deleteProduct(id) {
     if (!window.confirm("Deseja excluir este produto?")) return;
 
-    await API.delete("/products/" + id);
-    loadProducts();
+    try {
+      await API.delete("/products/" + id);
+      await loadProducts();
+    } catch (error) {
+      logError(error);
+      window.alert("Nao foi possivel excluir o produto.");
+    }
   }
 
   function toggleProductSelection(id) {
@@ -191,7 +206,7 @@ export default function Products({ setPage, setPricingProductId }) {
       });
       await loadProducts();
     } catch (error) {
-      console.log(error);
+      logError(error);
       setBulkMessage("Nao foi possivel editar em massa.");
     } finally {
       setBulkLoading(false);
@@ -221,7 +236,7 @@ export default function Products({ setPage, setPricingProductId }) {
       setSelectedIds([]);
       await loadProducts();
     } catch (error) {
-      console.log(error);
+      logError(error);
       setBulkMessage("Nao foi possivel excluir em massa.");
     } finally {
       setBulkLoading(false);
@@ -253,7 +268,7 @@ export default function Products({ setPage, setPricingProductId }) {
       setShopeeFile(null);
       loadProducts();
     } catch (error) {
-      console.log(error);
+      logError(error);
       setImportResult("Nao foi possivel importar. Confira se a planilha e de Informacoes de Vendas da Shopee.");
     } finally {
       setImportLoading(false);

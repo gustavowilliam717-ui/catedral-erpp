@@ -1,5 +1,9 @@
+from pathlib import Path
+
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.models import PricingHistory
@@ -25,7 +29,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from openai import OpenAI
 from app.models import Product
 
-from .database import Base, engine, get_db
+from .database import Base, engine, ensure_product_columns, get_db
 from . import models, schemas
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -109,8 +113,8 @@ class ProductBulkUpdate(BaseModel):
 
 
 XLSX_NS = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
-verification_challenges = {}
-registration_codes = {}
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
 
 
 def excel_column_index(cell_ref: str) -> int:
@@ -307,6 +311,39 @@ def create_six_digit_code():
     return f"{secrets.randbelow(900000) + 100000}"
 
 
+def hash_verification_code(code: str):
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        code.encode("utf-8"),
+        salt.encode("utf-8"),
+        80_000,
+    ).hex()
+    return f"{salt}${digest}"
+
+
+def verify_verification_code(code: str, stored_hash: str):
+    try:
+        salt, digest = stored_hash.split("$", 1)
+    except ValueError:
+        return False
+
+    candidate = hashlib.pbkdf2_hmac(
+        "sha256",
+        code.strip().encode("utf-8"),
+        salt.encode("utf-8"),
+        80_000,
+    ).hex()
+    return hmac.compare_digest(candidate, digest)
+
+
+def delete_expired_verification_codes(db: Session):
+    db.query(models.VerificationCode).filter(
+        models.VerificationCode.expires_at < datetime.utcnow()
+    ).delete(synchronize_session=False)
+    db.commit()
+
+
 def expose_dev_code(code: str):
     return code if os.getenv("SHOW_VERIFICATION_CODE", "true").lower() == "true" else None
 
@@ -393,24 +430,31 @@ def send_code_by_channel(channel: str, target: str, code: str, purpose: str):
     return send_email_code(target, code, purpose)
 
 
-def create_verification_challenge(user: models.User, payload):
+def create_verification_challenge(user: models.User, payload, db: Session):
     channel = normalize_verification_channel(payload.verification_channel)
     target = user.email
 
     if channel == "phone":
         target = normalize_phone(payload.phone)
 
+    delete_expired_verification_codes(db)
     code = create_six_digit_code()
     challenge_id = secrets.token_urlsafe(32)
     sent = send_code_by_channel(channel, target, code, "login",)
 
-    verification_challenges[challenge_id] = {
-        "user_id": user.id,
-        "code": code,
-        "channel": channel,
-        "target": target,
-        "expires_at": datetime.utcnow() + timedelta(minutes=10),
-    }
+    db.add(
+        models.VerificationCode(
+            purpose="login",
+            challenge_id=challenge_id,
+            user_id=user.id,
+            email=user.email,
+            phone=target if channel == "phone" else "",
+            channel=channel,
+            code_hash=hash_verification_code(code),
+            expires_at=datetime.utcnow() + timedelta(minutes=10),
+        )
+    )
+    db.commit()
 
     # Enquanto nao houver provedor de email/SMS conectado, o codigo fica
     # disponivel no retorno local para permitir testar o fluxo completo.
@@ -432,17 +476,28 @@ def create_registration_code(payload: RegisterCodeRequest, db: Session):
     if db.query(models.User).filter(models.User.email == email).first():
         raise HTTPException(status_code=400, detail="Este email ja possui cadastro")
 
+    delete_expired_verification_codes(db)
     email_code = create_six_digit_code()
     sms_code = create_six_digit_code()
     email_sent = send_email_code(email, email_code, "cadastro")
     sms_sent = send_sms_code(phone, sms_code, "cadastro")
-    registration_codes[email] = {
-        "email_code": email_code,
-        "sms_code": sms_code,
-        "email": email,
-        "phone": phone,
-        "expires_at": datetime.utcnow() + timedelta(minutes=10),
-    }
+    db.query(models.VerificationCode).filter(
+        models.VerificationCode.purpose == "registration",
+        models.VerificationCode.email == email,
+    ).delete(synchronize_session=False)
+    db.add(
+        models.VerificationCode(
+            purpose="registration",
+            challenge_id=secrets.token_urlsafe(32),
+            email=email,
+            phone=phone,
+            channel="email_sms",
+            email_code_hash=hash_verification_code(email_code),
+            sms_code_hash=hash_verification_code(sms_code),
+            expires_at=datetime.utcnow() + timedelta(minutes=10),
+        )
+    )
+    db.commit()
 
     return {
         "message": "Codigos de verificacao gerados",
@@ -456,17 +511,36 @@ def create_registration_code(payload: RegisterCodeRequest, db: Session):
     }
 
 
-def validate_registration_codes(email: str, phone: str, email_code: str, sms_code: str, fallback_code: str = ""):
-    registration = registration_codes.get(email)
+def validate_registration_codes(
+    email: str,
+    phone: str,
+    email_code: str,
+    sms_code: str,
+    fallback_code: str = "",
+    db: Session | None = None,
+):
+    if db is None:
+        raise HTTPException(status_code=500, detail="Banco indisponivel para validar codigos")
+
+    registration = (
+        db.query(models.VerificationCode)
+        .filter(
+            models.VerificationCode.purpose == "registration",
+            models.VerificationCode.email == email,
+        )
+        .order_by(models.VerificationCode.created_at.desc())
+        .first()
+    )
 
     if not registration:
         raise HTTPException(status_code=400, detail="Solicite os codigos de verificacao")
 
-    if registration["expires_at"] < datetime.utcnow():
-        registration_codes.pop(email, None)
+    if registration.expires_at < datetime.utcnow():
+        db.delete(registration)
+        db.commit()
         raise HTTPException(status_code=400, detail="Codigos de verificacao expirados")
 
-    if normalize_phone(phone) != registration["phone"]:
+    if normalize_phone(phone) != registration.phone:
         raise HTTPException(status_code=400, detail="O celular informado precisa ser o mesmo que recebeu o SMS")
 
     clean_email_code = (email_code or fallback_code or "").strip()
@@ -475,36 +549,44 @@ def validate_registration_codes(email: str, phone: str, email_code: str, sms_cod
     if not clean_email_code or not clean_sms_code:
         raise HTTPException(status_code=400, detail="Informe os codigos recebidos por email e SMS")
 
-    if not hmac.compare_digest(registration["email_code"], clean_email_code):
+    if not verify_verification_code(clean_email_code, registration.email_code_hash):
         raise HTTPException(status_code=400, detail="Codigo de email invalido")
 
-    if not hmac.compare_digest(registration["sms_code"], clean_sms_code):
+    if not verify_verification_code(clean_sms_code, registration.sms_code_hash):
         raise HTTPException(status_code=400, detail="Codigo de SMS invalido")
 
 
 def finish_verified_login(challenge_id: str, code: str, db: Session):
-    challenge = verification_challenges.get(challenge_id)
+    challenge = (
+        db.query(models.VerificationCode)
+        .filter(
+            models.VerificationCode.purpose == "login",
+            models.VerificationCode.challenge_id == challenge_id,
+        )
+        .first()
+    )
 
     if not challenge:
         raise HTTPException(status_code=400, detail="Codigo de verificacao expirado")
 
-    if challenge["expires_at"] < datetime.utcnow():
-        verification_challenges.pop(challenge_id, None)
+    if challenge.expires_at < datetime.utcnow():
+        db.delete(challenge)
+        db.commit()
         raise HTTPException(status_code=400, detail="Codigo de verificacao expirado")
 
-    if not hmac.compare_digest(challenge["code"], code.strip()):
+    if not verify_verification_code(code, challenge.code_hash):
         raise HTTPException(status_code=400, detail="Codigo de verificacao invalido")
 
     user = (
         db.query(models.User)
-        .filter(models.User.id == challenge["user_id"], models.User.is_active == True)
+        .filter(models.User.id == challenge.user_id, models.User.is_active == True)
         .first()
     )
 
     if not user:
         raise HTTPException(status_code=401, detail="Usuario inativo")
 
-    verification_challenges.pop(challenge_id, None)
+    db.delete(challenge)
     token = create_auth_session(user.id, db)
 
     return {
@@ -541,6 +623,7 @@ def require_user(
     return user
 
 Base.metadata.create_all(bind=engine)
+ensure_product_columns()
 
 app = FastAPI(title="Catedral ERP")
 
@@ -554,6 +637,11 @@ app.add_middleware(
 
 @app.get("/")
 def home():
+    index_file = FRONTEND_DIST / "index.html"
+
+    if index_file.exists():
+        return FileResponse(index_file)
+
     return {"message": "Catedral ERP rodando com sucesso"}
 
 
@@ -597,6 +685,7 @@ def auth_register(payload: RegisterRequest, db: Session = Depends(get_db)):
         payload.email_code,
         payload.sms_code,
         payload.verification_code,
+        db,
     )
 
     user = models.User(
@@ -608,7 +697,11 @@ def auth_register(payload: RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
-    registration_codes.pop(email, None)
+    db.query(models.VerificationCode).filter(
+        models.VerificationCode.purpose == "registration",
+        models.VerificationCode.email == email,
+    ).delete(synchronize_session=False)
+    db.commit()
 
     token = create_auth_session(user.id, db)
 
@@ -636,7 +729,7 @@ def auth_setup(payload: SetupRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    return create_verification_challenge(user, payload)
+    return create_verification_challenge(user, payload, db)
 
 
 @app.post("/auth/login")
@@ -650,7 +743,7 @@ def auth_login(payload: LoginRequest, db: Session = Depends(get_db)):
     if not user or not user.is_active or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Email ou senha invalidos")
 
-    return create_verification_challenge(user, payload)
+    return create_verification_challenge(user, payload, db)
 
 
 @app.post("/auth/verify-login")
@@ -1214,3 +1307,21 @@ async def import_shopee_products(
         "imported": imported,
         "skipped": skipped
     }
+
+
+if (FRONTEND_DIST / "assets").exists():
+    app.mount(
+        "/assets",
+        StaticFiles(directory=FRONTEND_DIST / "assets"),
+        name="frontend-assets",
+    )
+
+
+@app.get("/{full_path:path}")
+def serve_frontend(full_path: str):
+    index_file = FRONTEND_DIST / "index.html"
+
+    if index_file.exists():
+        return FileResponse(index_file)
+
+    raise HTTPException(status_code=404, detail="Frontend nao publicado")

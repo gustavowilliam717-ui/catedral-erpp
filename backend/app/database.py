@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -40,3 +40,31 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+PRODUCT_COLUMN_MIGRATIONS = {
+    "description": "VARCHAR DEFAULT ''",
+    "category": "VARCHAR DEFAULT ''",
+    "supplier": "VARCHAR DEFAULT ''",
+    "barcode": "VARCHAR DEFAULT ''",
+    "image_url": "VARCHAR DEFAULT ''",
+    "minimum_stock": "INTEGER DEFAULT 0",
+}
+
+
+def ensure_product_columns():
+    inspector = inspect(engine)
+
+    if not inspector.has_table("products"):
+        return
+
+    existing = {column["name"] for column in inspector.get_columns("products")}
+
+    with engine.begin() as connection:
+        for column_name, column_type in PRODUCT_COLUMN_MIGRATIONS.items():
+            if column_name in existing:
+                continue
+
+            connection.execute(
+                text(f"ALTER TABLE products ADD COLUMN {column_name} {column_type}")
+            )

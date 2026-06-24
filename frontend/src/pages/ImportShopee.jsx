@@ -1,5 +1,6 @@
 import { useState } from "react";
 import API from "../services/api";
+import { logError } from "../utils/logger";
 
 export default function ImportShopee() {
   const [file, setFile] = useState(null);
@@ -8,7 +9,7 @@ export default function ImportShopee() {
 
   async function importProducts() {
     if (!file) {
-      alert("Selecione uma planilha CSV da Shopee.");
+      alert("Selecione uma planilha XLSX ou CSV da Shopee.");
       return;
     }
 
@@ -25,10 +26,16 @@ export default function ImportShopee() {
         },
       });
 
-      setResult(`${response.data.imported} produtos importados com sucesso!`);
+      const skipped = response.data.skipped || 0;
+      setResult(
+        `${response.data.imported || 0} produtos importados/atualizados. ${skipped} linhas ignoradas.`
+      );
     } catch (error) {
-      console.log(error);
-      setResult("Erro ao importar. Verifique se o backend está no ar e se a rota existe.");
+      logError(error);
+      setResult(
+        error?.response?.data?.detail ||
+          "Erro ao importar. Verifique se a planilha e de Informacoes de Vendas da Shopee."
+      );
     } finally {
       setLoading(false);
     }
@@ -41,11 +48,11 @@ export default function ImportShopee() {
       <div className="box">
         <h2>Upload da planilha</h2>
 
-        <p>Envie a planilha CSV de Informações de Vendas exportada pela Shopee.</p>
+        <p>Envie a planilha XLSX ou CSV de Informacoes de Vendas exportada pela Shopee.</p>
 
         <input
           type="file"
-          accept=".csv"
+          accept=".csv,.xlsx"
           onChange={(e) => setFile(e.target.files[0])}
         />
 

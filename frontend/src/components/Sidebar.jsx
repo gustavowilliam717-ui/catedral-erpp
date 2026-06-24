@@ -37,10 +37,24 @@ export default function Sidebar({ page, setPage, user, onLogout }) {
     setPage(getFirstPage(module));
   }
 
-  function columnHasPage(column) {
-    const itemMatch = column.items?.some((item) => item.page === page);
+  function moduleHasPage(module, currentPage) {
+    if (module.key === "purchases") {
+      if (
+        currentPage.startsWith("purchase-") ||
+        currentPage === "suppliers" ||
+        currentPage === "supplier-relations"
+      ) {
+        return true;
+      }
+    }
+
+    return module.columns?.some((column) => columnHasPage(column, currentPage)) ?? false;
+  }
+
+  function columnHasPage(column, currentPage = page) {
+    const itemMatch = column.items?.some((item) => item.page === currentPage);
     const marketplaceMatch = column.marketplaces?.some((marketplace) =>
-      marketplace.actions.some((action) => action.page === page)
+      marketplace.actions.some((action) => action.page === currentPage)
     );
     return Boolean(itemMatch || marketplaceMatch);
   }
@@ -77,8 +91,7 @@ export default function Sidebar({ page, setPage, user, onLogout }) {
         <nav className="main-nav" aria-label="Navegacao principal">
           {erpModules.map((module) => {
             const isActive =
-              page === module.page ||
-              module.columns?.some((column) => columnHasPage(column));
+              page === module.page || moduleHasPage(module, page);
 
             return (
               <div className="nav-module" key={module.key}>
