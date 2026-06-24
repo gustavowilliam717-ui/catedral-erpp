@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import API from "../services/api";
+import { logError } from "../utils/logger";
 
 const marketplaceOptions = [
   "Todos",
@@ -54,7 +55,7 @@ export default function Stock() {
       const response = await API.get("/products");
       setProducts(response.data || []);
     } catch (error) {
-      console.log(error);
+      logError(error);
     }
   }
 

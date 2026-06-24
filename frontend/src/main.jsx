@@ -21,10 +21,12 @@ import OrderSettings from "./pages/OrderSettings";
 import Plans from "./pages/Plans";
 import ProductImporter from "./pages/ProductImporter";
 import SacReviews from "./pages/SacReviews";
+import Purchases from "./pages/Purchases";
 import ShippingSettings from "./pages/ShippingSettings";
 import ShopeeIntegration from "./pages/ShopeeIntegration";
 import StoreIntegrations from "./pages/StoreIntegrations";
 import API from "./services/api";
+import { logError } from "./utils/logger";
 
 import "./style.css";
 
@@ -42,7 +44,26 @@ function App() {
     "dashboard",
     "products",
     "finance",
+    "cash-flow",
+    "accounts-payable",
+    "accounts-receivable",
+    "profit-report",
+    "invoice-report",
+    "ncm-sales-report",
+    "ncm-purchase-report",
+    "ncm-stock-report",
+    "taxes",
     "pricing",
+    "purchase-suggestions",
+    "purchase-orders",
+    "purchase-orders-to-purchase",
+    "purchase-orders-in-transit",
+    "purchase-orders-partial",
+    "purchase-orders-completed",
+    "purchase-orders-canceled",
+    "purchase-nfe-brasil",
+    "suppliers",
+    "supplier-relations",
     "stock",
     "chat",
     "plans",
@@ -116,6 +137,30 @@ function App() {
     "account-transactions",
     "account-help",
   ];
+  const purchasePages = [
+    "purchase-suggestions",
+    "purchase-orders",
+    "purchase-orders-to-purchase",
+    "purchase-orders-in-transit",
+    "purchase-orders-partial",
+    "purchase-orders-completed",
+    "purchase-orders-canceled",
+    "purchase-nfe-brasil",
+    "suppliers",
+    "supplier-relations",
+  ];
+  const financePages = [
+    "finance",
+    "cash-flow",
+    "accounts-payable",
+    "accounts-receivable",
+    "profit-report",
+    "invoice-report",
+    "ncm-sales-report",
+    "ncm-purchase-report",
+    "ncm-stock-report",
+    "taxes",
+  ];
 
   useEffect(() => {
     async function validateSession() {
@@ -131,7 +176,7 @@ function App() {
         localStorage.setItem("catedral_user", JSON.stringify(response.data));
         setUser(response.data);
       } catch (error) {
-        console.log(error);
+        logError(error);
         localStorage.removeItem("catedral_token");
         localStorage.removeItem("catedral_user");
         setUser(null);
@@ -154,7 +199,7 @@ function App() {
     try {
       await API.post("/auth/logout");
     } catch (error) {
-      console.log(error);
+      logError(error);
     } finally {
       localStorage.removeItem("catedral_token");
       localStorage.removeItem("catedral_user");
@@ -191,7 +236,12 @@ function App() {
             setPricingProductId={setPricingProductId}
           />
         )}
-        {page === "finance" && <Finance />}
+        {financePages.includes(page) && (
+          <Finance activePage={page} setPage={setPage} />
+        )}
+        {purchasePages.includes(page) && (
+          <Purchases activePage={page} setPage={setPage} />
+        )}
         {page === "pricing" && (
           <Pricing
             initialProductId={pricingProductId}

@@ -16,6 +16,7 @@ import {
   YAxis,
 } from "recharts";
 import API from "../services/api";
+import { logError } from "../utils/logger";
 
 const marketColors = {
   Shopee: "#f97316",
@@ -42,7 +43,7 @@ export default function Dashboard() {
       setProducts(prod.data || []);
       setHistory(hist.data || []);
     } catch (error) {
-      console.log(error);
+      logError(error);
     } finally {
       setIsLoading(false);
     }

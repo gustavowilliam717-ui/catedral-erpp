@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import API from "../services/api";
+import { logError } from "../utils/logger";
 
 const sidebarGroups = [
   {
@@ -265,7 +266,7 @@ export default function ShippingSettings({
       try {
         setMethods(mergeStoredMethods(pageConfig.methods, JSON.parse(stored.value)));
       } catch (error) {
-        console.log(error);
+        logError(error);
       }
     }
   }

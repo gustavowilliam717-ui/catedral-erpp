@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import API from "../services/api";
+import { logError } from "../utils/logger";
 
 const fallbackImages = [
   "Imagem do anuncio",
@@ -24,7 +25,7 @@ export default function DataSpace() {
       const response = await API.get("/products");
       setProducts(response.data || []);
     } catch (error) {
-      console.log(error);
+      logError(error);
     }
   }
 

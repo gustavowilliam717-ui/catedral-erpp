@@ -79,6 +79,23 @@ class AuthSession(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class VerificationCode(Base):
+    __tablename__ = "verification_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    purpose = Column(String, index=True)
+    challenge_id = Column(String, unique=True, index=True)
+    user_id = Column(Integer, nullable=True, index=True)
+    email = Column(String, default="", index=True)
+    phone = Column(String, default="", index=True)
+    channel = Column(String, default="email")
+    code_hash = Column(String, default="")
+    email_code_hash = Column(String, default="")
+    sms_code_hash = Column(String, default="")
+    expires_at = Column(DateTime, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class StoreIntegration(Base):
     __tablename__ = "store_integrations"
 

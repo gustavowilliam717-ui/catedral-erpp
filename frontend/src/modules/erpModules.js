@@ -104,14 +104,26 @@ export const erpModules = [
   {
     key: "purchases",
     label: "Compras",
+    page: "purchase-suggestions",
     columns: [
       {
-        title: "Compras e Fornecedores",
+        title: "Controle de Compras",
+        items: [
+          { page: "purchase-suggestions", label: "Sugestao de Compras", badge: "Novo" },
+          { page: "purchase-orders", label: "Pedidos de Compras" },
+        ],
+      },
+      {
+        title: "NF-e de Compra",
+        items: [
+          { page: "purchase-nfe-brasil", label: "Brasil NF-e" },
+        ],
+      },
+      {
+        title: "Gestao de Fornecedores",
         items: [
           { page: "suppliers", label: "Fornecedores" },
-          { page: "purchase-orders", label: "Ordens de Compra" },
-          { page: "purchase-receiving", label: "Recebimento" },
-          { page: "cost-comparison", label: "Comparador de Custos" },
+          { page: "supplier-relations", label: "Gerenciamento de Fornecedores" },
         ],
       },
     ],
@@ -231,12 +243,22 @@ export const erpModules = [
     page: "finance",
     columns: [
       {
-        title: "Financeiro",
+        title: "Gestao Financeira",
         items: [
-          { page: "finance", label: "Receitas e Despesas", active: true },
-          { page: "cash-flow", label: "Fluxo de Caixa" },
+          { page: "finance", label: "Painel Financeiro", active: true },
+          { page: "cash-flow", label: "Caixa e Bancos" },
           { page: "accounts-payable", label: "Contas a Pagar" },
           { page: "accounts-receivable", label: "Contas a Receber" },
+        ],
+      },
+      {
+        title: "Relatorios",
+        items: [
+          { page: "profit-report", label: "Relatorio de Lucros" },
+          { page: "invoice-report", label: "Relatorio de NF-e" },
+          { page: "ncm-sales-report", label: "NCM Vendas" },
+          { page: "ncm-purchase-report", label: "NCM Compras" },
+          { page: "ncm-stock-report", label: "NCM Estoque" },
           { page: "taxes", label: "Impostos" },
         ],
       },

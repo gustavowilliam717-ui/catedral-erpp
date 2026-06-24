@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
+import { logError } from "../utils/logger";
 
 function createCaptchaCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -41,7 +42,7 @@ export default function Login({ onAuthenticated }) {
       const response = await API.get("/auth/bootstrap-status");
       setNeedsSetup(Boolean(response.data.needs_setup));
     } catch (error) {
-      console.log(error);
+      logError(error);
       setMessage("Nao consegui verificar o status do acesso.");
     } finally {
       setIsChecking(false);
@@ -88,7 +89,7 @@ export default function Login({ onAuthenticated }) {
       setRegisterCodeInfo(response.data);
       setForm((current) => ({ ...current, emailCode: "", smsCode: "" }));
     } catch (error) {
-      console.log(error);
+      logError(error);
       setMessage(error?.response?.data?.detail || "Nao foi possivel enviar os codigos.");
     } finally {
       setIsLoading(false);
@@ -129,7 +130,7 @@ export default function Login({ onAuthenticated }) {
 
         completeLogin(response.data);
       } catch (error) {
-        console.log(error);
+        logError(error);
         setMessage(error?.response?.data?.detail || "Nao foi possivel cadastrar.");
       } finally {
         setIsLoading(false);
@@ -153,7 +154,7 @@ export default function Login({ onAuthenticated }) {
 
         completeLogin(response.data);
       } catch (error) {
-        console.log(error);
+        logError(error);
         setMessage(error?.response?.data?.detail || "Codigo invalido.");
       } finally {
         setIsLoading(false);
@@ -206,7 +207,7 @@ export default function Login({ onAuthenticated }) {
 
       completeLogin(response.data);
     } catch (error) {
-      console.log(error);
+      logError(error);
       setMessage(error?.response?.data?.detail || "Nao foi possivel entrar.");
     } finally {
       setIsLoading(false);
@@ -291,7 +292,16 @@ export default function Login({ onAuthenticated }) {
         ) : (
           <section className="login-intro">
             <span>Marketplace ERP</span>
-            <h1>Operacao centralizada para vender com controle.</h1>
+            <div className="login-headline-wrap">
+              <span className="rocket-logo login-headline-rocket" aria-hidden="true">
+                <span className="rocket-trail" />
+                <span className="rocket-flame" />
+                <span className="rocket-ship">
+                  <span className="rocket-window" />
+                </span>
+              </span>
+              <h1>Operacao centralizada para vender com controle.</h1>
+            </div>
             <p>
               Produtos, pedidos, estoque, precificacao, SAC e financeiro em uma
               plataforma segura para equipes de marketplace.
