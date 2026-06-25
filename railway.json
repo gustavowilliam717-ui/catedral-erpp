@@ -5,6 +5,7 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
+    "startCommand": "python /app/backend/server.py",
     "healthcheckPath": "/health/database",
     "healthcheckTimeout": 120,
     "restartPolicyType": "ON_FAILURE",
