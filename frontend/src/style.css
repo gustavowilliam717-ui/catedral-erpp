@@ -6510,7 +6510,7 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
-  .integration-form-grid input:nth-child(7) {
+.integration-form-grid input:nth-child(7) {
     grid-column: auto;
   }
 
@@ -6523,6 +6523,404 @@ button:disabled {
   .import-actions {
     grid-template-columns: 1fr;
   }
+}
+
+.orders-layout {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  min-height: calc(100vh - 112px);
+  background: #f4f7fb;
+  border-top: 1px solid var(--line);
+}
+
+.orders-sidebar {
+  background: #f8fafd;
+  border-right: 1px solid #dbe4ef;
+  padding: 16px 10px 28px;
+}
+
+.orders-sidebar h2 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  color: #15263b;
+}
+
+.orders-sidebar div {
+  margin-bottom: 18px;
+}
+
+.orders-sidebar strong {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 6px 8px;
+  color: #233852;
+  font-size: 13px;
+}
+
+.orders-sidebar button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 34px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #24415f;
+  font-weight: 700;
+  text-align: left;
+}
+
+.orders-sidebar button:hover,
+.orders-sidebar button.active {
+  background: #e5f0ff;
+  color: #0066df;
+}
+
+.orders-sidebar button span {
+  color: #8ea0b7;
+  font-size: 12px;
+}
+
+.orders-content {
+  min-width: 0;
+  padding: 14px 14px 32px;
+}
+
+.orders-flow-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.orders-flow-strip button {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 2px 10px;
+  align-items: center;
+  min-height: 66px;
+  border: 1px solid #dbe4ef;
+  border-radius: 6px;
+  background: #fff;
+  color: #526a84;
+  padding: 10px 12px;
+  text-align: left;
+  box-shadow: 0 8px 18px rgba(13, 37, 63, 0.04);
+}
+
+.orders-flow-strip button.active,
+.orders-flow-strip button:hover {
+  border-color: #8ebdff;
+  background: #eef6ff;
+  color: #0066df;
+}
+
+.orders-flow-strip button > span {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #e8f2ff;
+  color: #0066df;
+  font-weight: 900;
+}
+
+.orders-flow-strip strong {
+  color: #1e3550;
+  font-size: 13px;
+}
+
+.orders-flow-strip small {
+  color: #7b8fa7;
+  font-weight: 800;
+}
+
+.orders-panel {
+  min-height: 620px;
+  background: #fff;
+  border: 1px solid #dbe4ef;
+  border-radius: 6px;
+  box-shadow: 0 10px 26px rgba(13, 37, 63, 0.05);
+  overflow: auto;
+}
+
+.orders-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border-bottom: 1px solid #e6edf5;
+  background: #fbfcfe;
+}
+
+.orders-filter-grid {
+  display: grid;
+  grid-template-columns: 180px minmax(240px, 1fr) 130px 150px 150px 150px;
+  gap: 8px;
+  width: min(1160px, 100%);
+}
+
+.orders-filter-grid input,
+.orders-filter-grid select {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid #d4e0ee;
+  border-radius: 4px;
+  background: #fff;
+  padding: 7px 10px;
+  color: #263b53;
+}
+
+.orders-toolbar-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.orders-toolbar-actions button,
+.orders-bulk-row button,
+.orders-actions-cell button {
+  border: 1px solid #006ee8;
+  border-radius: 4px;
+  background: #006ee8;
+  color: #fff;
+  padding: 8px 12px;
+  font-weight: 800;
+}
+
+.orders-bulk-row button[disabled],
+.orders-actions-cell button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.orders-bulk-row button:last-of-type,
+.orders-actions-cell button:last-child {
+  background: #fff;
+  color: #006ee8;
+}
+
+.orders-status-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px 0;
+}
+
+.orders-status-tabs button {
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: #fff;
+  color: #526a84;
+  padding: 7px 10px;
+  font-weight: 800;
+}
+
+.orders-status-tabs button.active,
+.orders-status-tabs button:hover {
+  border-color: #8ebdff;
+  background: #eef6ff;
+  color: #0066df;
+}
+
+.orders-status-tabs span {
+  margin-left: 4px;
+  color: #8ea0b7;
+}
+
+.orders-bulk-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 14px;
+  color: #59708b;
+}
+
+.orders-bulk-row strong {
+  color: #2a3d54;
+}
+
+.orders-bulk-row span {
+  margin-left: auto;
+  border: 1px solid #d4e0ee;
+  border-radius: 4px;
+  padding: 6px 10px;
+  color: #344b66;
+  font-weight: 800;
+}
+
+.orders-bulk-row small {
+  color: #7d8fa5;
+  font-weight: 800;
+}
+
+.orders-table {
+  min-width: 1260px;
+  border-collapse: collapse;
+}
+
+.orders-table th {
+  background: #f5f8fc;
+  color: #3d5069;
+  font-size: 12px;
+  border-top: 1px solid #e6edf5;
+  border-bottom: 1px solid #e6edf5;
+}
+
+.orders-table th,
+.orders-table td {
+  padding: 12px 14px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.orders-table td {
+  border-bottom: 1px solid #edf2f7;
+  color: #2f435c;
+  font-size: 13px;
+}
+
+.order-product-cell {
+  display: grid;
+  grid-template-columns: 38px minmax(190px, 1fr);
+  gap: 10px;
+  min-width: 260px;
+}
+
+.order-product-thumb {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #d8e4f0;
+  border-radius: 4px;
+  background: #f3f7fb;
+  color: #24547d;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.order-product-cell div,
+.orders-table td {
+  min-width: 0;
+}
+
+.order-product-cell strong,
+.orders-table td > strong {
+  display: block;
+  color: #143356;
+}
+
+.order-product-cell a {
+  display: block;
+  color: #006ee8;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.order-product-cell small,
+.order-product-cell em,
+.orders-table td > span,
+.orders-table td > small {
+  display: block;
+  color: #5f738e;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.orders-table td > small,
+.order-product-cell em {
+  color: #8192a8;
+}
+
+.order-state,
+.order-doc-state,
+.order-label-state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 92px;
+  border-radius: 999px;
+  padding: 4px 9px;
+  margin: 0 6px 6px 0;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.order-state.to_invoice,
+.order-doc-state.pending,
+.order-label-state.not_printed {
+  background: #fff1d7;
+  color: #a95c00;
+}
+
+.order-state.to_ship,
+.order-label-state.generated {
+  background: #e8f2ff;
+  color: #0066df;
+}
+
+.order-state.to_print {
+  background: #f0eaff;
+  color: #5840b8;
+}
+
+.order-state.pickup {
+  background: #eaf7ff;
+  color: #0876a6;
+}
+
+.order-state.shipped,
+.order-doc-state.issued,
+.order-label-state.printed {
+  background: #e7f8ee;
+  color: #178044;
+}
+
+.order-state.canceled,
+.order-doc-state.failed {
+  background: #ffe8e8;
+  color: #c22525;
+}
+
+.orders-actions-cell {
+  display: grid;
+  gap: 8px;
+  min-width: 150px;
+}
+
+.orders-empty-state {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  min-height: 300px;
+  color: #b4c1d0;
+}
+
+.orders-empty-state span {
+  width: 42px;
+  height: 30px;
+  border: 2px solid #e1e8f0;
+  border-radius: 12px 12px 6px 6px;
+  position: relative;
+}
+
+.orders-empty-state span::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  top: -9px;
+  height: 12px;
+  border: 2px solid #e1e8f0;
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
 }
 
 .purchase-layout {
@@ -6891,6 +7289,41 @@ button:disabled {
 }
 
 @media (max-width: 980px) {
+  .orders-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .orders-sidebar {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid #dbe4ef;
+  }
+
+  .orders-sidebar div {
+    min-width: 190px;
+    margin-bottom: 0;
+  }
+
+  .orders-flow-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .orders-toolbar,
+  .orders-bulk-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .orders-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .orders-bulk-row span {
+    margin-left: 0;
+  }
+
   .purchase-layout {
     grid-template-columns: 1fr;
   }

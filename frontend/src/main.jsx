@@ -19,6 +19,7 @@ import Login from "./pages/Login";
 import MarketplaceFees from "./pages/MarketplaceFees";
 import ModulePlaceholder from "./pages/ModulePlaceholder";
 import OrderSettings from "./pages/OrderSettings";
+import Orders from "./pages/Orders";
 import Plans from "./pages/Plans";
 import PricingHistory from "./pages/PricingHistory";
 import PricingRules from "./pages/PricingRules";
@@ -90,6 +91,14 @@ function App() {
     "product-importer",
     "data-space",
     "importShopee",
+    "orders",
+    "orders-to-invoice",
+    "orders-to-ship",
+    "orders-to-print",
+    "orders-pickup",
+    "orders-shipped",
+    "orders-history",
+    "orders-canceled",
     "store-integrations",
     "shopee-api",
     "settings-orders",
@@ -167,6 +176,16 @@ function App() {
     "purchase-nfe-brasil",
     "suppliers",
     "supplier-relations",
+  ];
+  const orderPages = [
+    "orders",
+    "orders-to-invoice",
+    "orders-to-ship",
+    "orders-to-print",
+    "orders-pickup",
+    "orders-shipped",
+    "orders-history",
+    "orders-canceled",
   ];
   const financePages = [
     "finance",
@@ -276,6 +295,9 @@ function App() {
         )}
         {purchasePages.includes(page) && (
           <Purchases activePage={page} setPage={setPage} />
+        )}
+        {orderPages.includes(page) && (
+          <Orders activePage={page} setPage={setPage} />
         )}
         {page === "pricing" && (
           <Pricing

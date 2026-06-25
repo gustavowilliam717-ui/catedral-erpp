@@ -83,17 +83,26 @@ export const erpModules = [
     label: "Pedidos",
     columns: [
       {
-        title: "Operacao",
+        title: "Gerenciamento de Pedidos",
         items: [
-          { page: "orders", label: "Todos os Pedidos" },
+          { page: "orders", label: "Pedidos Recentes" },
+          { page: "orders-history", label: "Pedidos Historicos" },
+        ],
+      },
+      {
+        title: "Processando Pedidos",
+        items: [
+          { page: "orders-to-invoice", label: "Para Emitir" },
           { page: "orders-to-ship", label: "Para Enviar" },
           { page: "orders-to-print", label: "Para Imprimir" },
-          { page: "orders-pickup", label: "Retirada" },
+          { page: "orders-pickup", label: "Para Retirada" },
+          { page: "orders-shipped", label: "Enviado" },
         ],
       },
       {
         title: "Pos-venda",
         items: [
+          { page: "orders-canceled", label: "Anulado" },
           { page: "returns", label: "Devolucoes" },
           { page: "refunds", label: "Reembolsos" },
           { page: "claims", label: "Reclamacoes" },
