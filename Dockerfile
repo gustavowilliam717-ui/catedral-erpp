@@ -19,4 +19,6 @@ COPY --from=frontend /app/frontend/dist ./frontend/dist
 ENV PYTHONUNBUFFERED=1
 # main.py resolve FRONTEND_DIST como <raiz>/frontend/dist (parents[2]).
 # Mantendo backend/ e frontend/dist sob /app, o caminho bate.
-CMD ["sh", "-c", "cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+WORKDIR /app/backend
+# server.py le a porta de $PORT em Python (sem depender de shell).
+CMD ["python", "server.py"]
