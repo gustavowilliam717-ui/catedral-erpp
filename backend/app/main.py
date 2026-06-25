@@ -2,7 +2,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -18,13 +18,14 @@ import os
 import re
 import secrets
 import smtplib
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta
 from email.message import EmailMessage
 from zipfile import ZipFile
 from xml.etree import ElementTree as ET
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from fastapi import UploadFile, File
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from openai import OpenAI
@@ -34,6 +35,7 @@ from .database import (
     Base,
     engine,
     ensure_product_columns,
+    ensure_fiscal_invoice_columns,
     ensure_user_columns,
     ensure_verification_code_columns,
     get_db,
@@ -119,6 +121,37 @@ class SettingUpdate(BaseModel):
     key: str
     value: str
     group: str = "general"
+
+
+class FiscalConfigUpdate(BaseModel):
+    provider: str = "focus_nfe"
+    environment: str = "homologacao"
+    base_url: str = ""
+    focus_token: str = ""
+    company_name: str = ""
+    company_document: str = ""
+    state_registration: str = ""
+    municipal_registration: str = ""
+    tax_regime: str = ""
+    series_nfe: str = "1"
+    series_nfce: str = "1"
+    automatic_issue: bool = False
+    focus_issuer_registered: bool = False
+    focus_nfe_enabled: bool = False
+    focus_certificate_uploaded: bool = False
+    focus_homologation_token_ready: bool = False
+    focus_production_token_ready: bool = False
+    focus_nfce_csc_configured: bool = False
+
+
+class FiscalIssueRequest(BaseModel):
+    ref: str = ""
+    document_type: str = "nfe"
+    payload: dict = Field(default_factory=dict)
+
+
+class FiscalCancelRequest(BaseModel):
+    justificativa: str
 
 
 class ProductBulkDelete(BaseModel):
@@ -367,6 +400,432 @@ def delete_expired_verification_codes(db: Session):
         models.VerificationCode.expires_at < datetime.utcnow()
     ).delete(synchronize_session=False)
     db.commit()
+
+
+FISCAL_SETTING_KEYS = {
+    "provider",
+    "environment",
+    "base_url",
+    "company_name",
+    "company_document",
+    "state_registration",
+    "municipal_registration",
+    "tax_regime",
+    "series_nfe",
+    "series_nfce",
+    "automatic_issue",
+    "focus_issuer_registered",
+    "focus_nfe_enabled",
+    "focus_certificate_uploaded",
+    "focus_homologation_token_ready",
+    "focus_production_token_ready",
+    "focus_nfce_csc_configured",
+}
+
+
+def get_setting_value(db: Session, key: str, default: str = "", group: str = "fiscal"):
+    setting = (
+        db.query(models.Setting)
+        .filter(models.Setting.group == group, models.Setting.key == key)
+        .first()
+    )
+    return setting.value if setting else default
+
+
+def upsert_setting_value(db: Session, key: str, value: str, group: str = "fiscal"):
+    setting = db.query(models.Setting).filter(models.Setting.key == key).first()
+
+    if setting:
+        setting.value = value
+        setting.group = group
+        setting.updated_at = datetime.utcnow()
+    else:
+        setting = models.Setting(key=key, value=value, group=group)
+        db.add(setting)
+
+    return setting
+
+
+def get_focus_token(db: Session):
+    return (os.getenv("FOCUS_NFE_TOKEN") or get_setting_value(db, "focus_nfe_token", group="fiscal_secret")).strip()
+
+
+def get_fiscal_config(db: Session):
+    environment = get_setting_value(db, "environment", os.getenv("FISCAL_ENVIRONMENT", "homologacao"))
+    default_base_url = (
+        "https://api.focusnfe.com.br"
+        if environment == "producao"
+        else "https://homologacao.focusnfe.com.br"
+    )
+    base_url = get_setting_value(db, "base_url") or os.getenv("FOCUS_NFE_BASE_URL") or default_base_url
+
+    return {
+        "provider": get_setting_value(db, "provider", os.getenv("FISCAL_PROVIDER", "focus_nfe")),
+        "environment": environment,
+        "base_url": base_url.rstrip("/"),
+        "company_name": get_setting_value(db, "company_name"),
+        "company_document": get_setting_value(db, "company_document"),
+        "state_registration": get_setting_value(db, "state_registration"),
+        "municipal_registration": get_setting_value(db, "municipal_registration"),
+        "tax_regime": get_setting_value(db, "tax_regime"),
+        "series_nfe": get_setting_value(db, "series_nfe", "1"),
+        "series_nfce": get_setting_value(db, "series_nfce", "1"),
+        "automatic_issue": get_setting_value(db, "automatic_issue", "false") == "true",
+        "focus_issuer_registered": get_setting_value(db, "focus_issuer_registered", "false") == "true",
+        "focus_nfe_enabled": get_setting_value(db, "focus_nfe_enabled", "false") == "true",
+        "focus_certificate_uploaded": get_setting_value(db, "focus_certificate_uploaded", "false") == "true",
+        "focus_homologation_token_ready": get_setting_value(db, "focus_homologation_token_ready", "false") == "true",
+        "focus_production_token_ready": get_setting_value(db, "focus_production_token_ready", "false") == "true",
+        "focus_nfce_csc_configured": get_setting_value(db, "focus_nfce_csc_configured", "false") == "true",
+        "focus_token_configured": bool(get_focus_token(db)),
+    }
+
+
+def generate_fiscal_ref(document_type: str):
+    clean_type = re.sub(r"[^a-z0-9-]", "", (document_type or "nfe").lower()) or "nfe"
+    return f"{clean_type}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{secrets.token_hex(3)}"
+
+
+def fiscal_json_dumps(payload):
+    return json.dumps(payload or {}, ensure_ascii=False, separators=(",", ":"))
+
+
+def normalize_focus_asset_url(value: str, base_url: str):
+    if not value:
+        return ""
+
+    if value.startswith("http://") or value.startswith("https://"):
+        return value
+
+    return f"{base_url.rstrip('/')}/{value.lstrip('/')}"
+
+
+def extract_focus_invoice_data(response_payload: dict, base_url: str = ""):
+    pdf_url = str(
+        response_payload.get("caminho_danfe")
+        or response_payload.get("url_danfe")
+        or response_payload.get("danfe")
+        or ""
+    )
+    xml_url = str(
+        response_payload.get("caminho_xml_nota_fiscal")
+        or response_payload.get("url_xml")
+        or response_payload.get("xml")
+        or ""
+    )
+
+    return {
+        "status": str(response_payload.get("status") or response_payload.get("situacao") or "processando"),
+        "status_sefaz": str(response_payload.get("status_sefaz") or ""),
+        "mensagem_sefaz": str(
+            response_payload.get("mensagem_sefaz")
+            or response_payload.get("mensagem")
+            or response_payload.get("message")
+            or ""
+        ),
+        "chave": str(response_payload.get("chave_nfe") or response_payload.get("chave") or ""),
+        "numero": str(response_payload.get("numero") or ""),
+        "serie": str(response_payload.get("serie") or ""),
+        "pdf_url": normalize_focus_asset_url(pdf_url, base_url),
+        "xml_url": normalize_focus_asset_url(xml_url, base_url),
+    }
+
+
+def apply_focus_invoice_response(invoice: models.FiscalInvoice, response_payload: dict, db: Session):
+    extracted = extract_focus_invoice_data(response_payload, get_fiscal_config(db)["base_url"])
+
+    for key, value in extracted.items():
+        setattr(invoice, key, value)
+
+    invoice.response_payload = fiscal_json_dumps(response_payload)
+    invoice.updated_at = datetime.utcnow()
+
+
+def build_focus_auth_header(db: Session):
+    token = get_focus_token(db)
+
+    if not token:
+        raise HTTPException(
+            status_code=503,
+            detail="Focus NFe nao configurado. Informe o token na tela fiscal ou configure FOCUS_NFE_TOKEN no backend/.env.",
+        )
+
+    credentials = base64.b64encode(f"{token}:".encode("utf-8")).decode("utf-8")
+    return f"Basic {credentials}"
+
+
+def focus_document_path(document_type: str):
+    normalized = (document_type or "nfe").lower().strip()
+
+    if normalized not in {"nfe", "nfce"}:
+        raise HTTPException(status_code=400, detail="Tipo fiscal invalido. Use nfe ou nfce.")
+
+    return normalized
+
+
+def focus_nfe_request(method: str, path: str, body: dict | None, db: Session):
+    config = get_fiscal_config(db)
+
+    if config["provider"] != "focus_nfe":
+        raise HTTPException(status_code=400, detail="Provedor fiscal configurado nao suportado")
+
+    payload = fiscal_json_dumps(body).encode("utf-8") if body is not None else None
+    request = urllib.request.Request(
+        f"{config['base_url']}{path}",
+        data=payload,
+        method=method,
+    )
+    request.add_header("Authorization", build_focus_auth_header(db))
+    request.add_header("Accept", "application/json")
+
+    if body is not None:
+        request.add_header("Content-Type", "application/json")
+
+    try:
+        with urllib.request.urlopen(request, timeout=40) as response:
+            raw = response.read().decode("utf-8", errors="ignore")
+            return json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore") or str(exc)
+        try:
+            parsed_detail = json.loads(detail)
+            detail = (
+                parsed_detail.get("mensagem")
+                or parsed_detail.get("message")
+                or parsed_detail.get("erro")
+                or parsed_detail.get("error")
+                or parsed_detail.get("errors")
+                or detail
+            )
+        except Exception:
+            pass
+        raise HTTPException(status_code=exc.code, detail=f"Falha fiscal Focus NFe: {detail}")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Falha fiscal Focus NFe: {exc}")
+
+
+def serialize_fiscal_invoice(invoice: models.FiscalInvoice):
+    return {
+        "id": invoice.id,
+        "ref": invoice.ref,
+        "document_type": invoice.document_type,
+        "provider": invoice.provider,
+        "status": invoice.status,
+        "status_sefaz": invoice.status_sefaz,
+        "mensagem_sefaz": invoice.mensagem_sefaz,
+        "chave": invoice.chave,
+        "numero": invoice.numero,
+        "serie": invoice.serie,
+        "valor_total": invoice.valor_total,
+        "customer_name": invoice.customer_name,
+        "customer_document": invoice.customer_document,
+        "pdf_url": invoice.pdf_url,
+        "xml_url": invoice.xml_url,
+        "created_at": invoice.created_at.isoformat() if invoice.created_at else None,
+        "updated_at": invoice.updated_at.isoformat() if invoice.updated_at else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Integracao Mercado Livre (OAuth 2.0)
+# ---------------------------------------------------------------------------
+ML_PROVIDER = "mercado_livre"
+ML_OAUTH_STATE_GROUP = "ml_oauth"
+
+
+def get_ml_settings():
+    return {
+        "app_id": os.getenv("ML_APP_ID", "").strip(),
+        "secret_key": os.getenv("ML_SECRET_KEY", "").strip(),
+        "redirect_uri": os.getenv("ML_REDIRECT_URI", "").strip(),
+        "auth_url": os.getenv(
+            "ML_AUTH_URL", "https://auth.mercadolivre.com.br/authorization"
+        ).strip(),
+        "api_base": os.getenv("ML_API_BASE", "https://api.mercadolibre.com").strip().rstrip("/"),
+        "frontend_return_url": os.getenv("ML_FRONTEND_RETURN_URL", "/").strip() or "/",
+    }
+
+
+def require_ml_settings():
+    settings = get_ml_settings()
+
+    missing = [
+        name
+        for name, key in (("ML_APP_ID", "app_id"), ("ML_SECRET_KEY", "secret_key"), ("ML_REDIRECT_URI", "redirect_uri"))
+        if not settings[key]
+    ]
+
+    if missing:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Mercado Livre nao configurado. Defina "
+                + ", ".join(missing)
+                + " no backend/.env."
+            ),
+        )
+
+    return settings
+
+
+def ml_http_request(method: str, url: str, *, data: bytes | None = None, headers: dict | None = None):
+    request = urllib.request.Request(url, data=data, method=method)
+    request.add_header("Accept", "application/json")
+
+    for header_name, header_value in (headers or {}).items():
+        request.add_header(header_name, header_value)
+
+    try:
+        with urllib.request.urlopen(request, timeout=40) as response:
+            raw = response.read().decode("utf-8", errors="ignore")
+            return json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore") or str(exc)
+        raise HTTPException(status_code=exc.code, detail=f"Falha Mercado Livre: {detail}")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Falha Mercado Livre: {exc}")
+
+
+def ml_token_request(payload: dict):
+    settings = require_ml_settings()
+    body = urllib.parse.urlencode(payload).encode("utf-8")
+    return ml_http_request(
+        "POST",
+        f"{settings['api_base']}/oauth/token",
+        data=body,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+
+def create_ml_oauth_state(user_id: int, db: Session):
+    state = secrets.token_urlsafe(32)
+    expires_at = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
+    upsert_setting_value(
+        db,
+        f"state:{state}",
+        json.dumps({"user_id": user_id, "expires_at": expires_at}),
+        group=ML_OAUTH_STATE_GROUP,
+    )
+    db.commit()
+    return state
+
+
+def consume_ml_oauth_state(state: str, db: Session):
+    if not state:
+        raise HTTPException(status_code=400, detail="Parametro state ausente no retorno do Mercado Livre")
+
+    setting = (
+        db.query(models.Setting)
+        .filter(models.Setting.group == ML_OAUTH_STATE_GROUP, models.Setting.key == f"state:{state}")
+        .first()
+    )
+
+    if not setting:
+        raise HTTPException(status_code=400, detail="Autorizacao invalida ou expirada. Tente conectar novamente.")
+
+    try:
+        data = json.loads(setting.value or "{}")
+        expires_at = datetime.fromisoformat(data.get("expires_at"))
+    except (ValueError, TypeError):
+        expires_at = datetime.utcnow() - timedelta(seconds=1)
+        data = {}
+
+    db.delete(setting)
+    db.commit()
+
+    if expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Autorizacao expirada. Tente conectar novamente.")
+
+    return data
+
+
+def get_ml_credential(db: Session):
+    return (
+        db.query(models.MarketplaceCredential)
+        .filter(models.MarketplaceCredential.provider == ML_PROVIDER)
+        .first()
+    )
+
+
+def save_ml_credential(token_payload: dict, db: Session):
+    expires_in = int(token_payload.get("expires_in") or 0)
+    credential = get_ml_credential(db)
+
+    if not credential:
+        credential = models.MarketplaceCredential(provider=ML_PROVIDER)
+        db.add(credential)
+
+    credential.external_user_id = str(token_payload.get("user_id") or credential.external_user_id or "")
+    credential.access_token = str(token_payload.get("access_token") or "")
+    credential.refresh_token = str(token_payload.get("refresh_token") or credential.refresh_token or "")
+    credential.token_type = str(token_payload.get("token_type") or "bearer")
+    credential.scope = str(token_payload.get("scope") or "")
+    credential.expires_at = datetime.utcnow() + timedelta(seconds=expires_in) if expires_in else None
+    credential.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(credential)
+    return credential
+
+
+def refresh_ml_token(credential: models.MarketplaceCredential, db: Session):
+    settings = require_ml_settings()
+
+    if not credential.refresh_token:
+        raise HTTPException(status_code=401, detail="Mercado Livre desconectado. Conecte a conta novamente.")
+
+    token_payload = ml_token_request(
+        {
+            "grant_type": "refresh_token",
+            "client_id": settings["app_id"],
+            "client_secret": settings["secret_key"],
+            "refresh_token": credential.refresh_token,
+        }
+    )
+    return save_ml_credential(token_payload, db)
+
+
+def get_valid_ml_access_token(db: Session):
+    credential = get_ml_credential(db)
+
+    if not credential or not credential.access_token:
+        raise HTTPException(status_code=401, detail="Mercado Livre nao conectado. Conecte a conta primeiro.")
+
+    if credential.expires_at and credential.expires_at <= datetime.utcnow() + timedelta(minutes=5):
+        credential = refresh_ml_token(credential, db)
+
+    return credential.access_token, credential
+
+
+def ml_authenticated_get(path: str, db: Session):
+    settings = get_ml_settings()
+    access_token, _ = get_valid_ml_access_token(db)
+    return ml_http_request(
+        "GET",
+        f"{settings['api_base']}{path}",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+
+def serialize_ml_status(db: Session):
+    settings = get_ml_settings()
+    credential = get_ml_credential(db)
+    configured = bool(settings["app_id"] and settings["secret_key"] and settings["redirect_uri"])
+
+    return {
+        "configured": configured,
+        "connected": bool(credential and credential.access_token),
+        "app_id_present": bool(settings["app_id"]),
+        "redirect_uri": settings["redirect_uri"],
+        "nickname": credential.nickname if credential else "",
+        "external_user_id": credential.external_user_id if credential else "",
+        "scope": credential.scope if credential else "",
+        "expires_at": credential.expires_at.isoformat() if credential and credential.expires_at else None,
+        "updated_at": credential.updated_at.isoformat() if credential and credential.updated_at else None,
+    }
 
 
 def send_email_code(email: str, code: str, purpose: str):
@@ -766,6 +1225,7 @@ def require_user(
 
 Base.metadata.create_all(bind=engine)
 ensure_product_columns()
+ensure_fiscal_invoice_columns()
 ensure_user_columns()
 ensure_verification_code_columns()
 
@@ -1107,6 +1567,264 @@ def upsert_setting(
     db.commit()
     db.refresh(setting)
     return setting
+
+
+@app.get("/fiscal/config")
+def fiscal_config(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    return get_fiscal_config(db)
+
+
+@app.put("/fiscal/config")
+def update_fiscal_config(
+    payload: FiscalConfigUpdate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    data = payload.model_dump()
+    focus_token = str(data.pop("focus_token", "") or "").strip()
+
+    if focus_token:
+        upsert_setting_value(db, "focus_nfe_token", focus_token, group="fiscal_secret")
+
+    for key, value in data.items():
+        if key not in FISCAL_SETTING_KEYS:
+            continue
+
+        upsert_setting_value(db, key, str(value).lower() if isinstance(value, bool) else str(value))
+
+    db.commit()
+    return get_fiscal_config(db)
+
+
+@app.get("/fiscal/invoices")
+def list_fiscal_invoices(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    invoices = (
+        db.query(models.FiscalInvoice)
+        .order_by(models.FiscalInvoice.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    return [serialize_fiscal_invoice(invoice) for invoice in invoices]
+
+
+@app.post("/fiscal/invoices")
+def issue_fiscal_invoice(
+    payload: FiscalIssueRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    document_type = focus_document_path(payload.document_type)
+    ref = (payload.ref or generate_fiscal_ref(document_type)).strip()
+
+    if not ref:
+        ref = generate_fiscal_ref(document_type)
+
+    if db.query(models.FiscalInvoice).filter(models.FiscalInvoice.ref == ref).first():
+        raise HTTPException(status_code=400, detail="Ja existe uma nota fiscal com esta referencia")
+
+    if not payload.payload:
+        raise HTTPException(status_code=400, detail="Informe o JSON fiscal da nota")
+
+    response_payload = focus_nfe_request(
+        "POST",
+        f"/v2/{document_type}?ref={urllib.parse.quote(ref)}",
+        payload.payload,
+        db,
+    )
+
+    invoice = models.FiscalInvoice(
+        ref=ref,
+        document_type=document_type,
+        provider="focus_nfe",
+        request_payload=fiscal_json_dumps(payload.payload),
+        valor_total=parse_number(payload.payload.get("valor_total") or payload.payload.get("total"), 0),
+        customer_name=str(
+            payload.payload.get("nome_destinatario")
+            or payload.payload.get("razao_social_destinatario")
+            or ""
+        ),
+        customer_document=str(
+            payload.payload.get("cpf_destinatario")
+            or payload.payload.get("cnpj_destinatario")
+            or ""
+        ),
+    )
+    apply_focus_invoice_response(invoice, response_payload, db)
+    db.add(invoice)
+    db.commit()
+    db.refresh(invoice)
+
+    return serialize_fiscal_invoice(invoice) | {"provider_response": response_payload}
+
+
+@app.get("/fiscal/invoices/{ref}")
+def get_fiscal_invoice(
+    ref: str,
+    refresh: bool = False,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    invoice = db.query(models.FiscalInvoice).filter(models.FiscalInvoice.ref == ref).first()
+
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Nota fiscal nao encontrada")
+
+    if refresh:
+        document_type = focus_document_path(invoice.document_type)
+        response_payload = focus_nfe_request(
+            "GET",
+            f"/v2/{document_type}/{urllib.parse.quote(ref)}?completa=1",
+            None,
+            db,
+        )
+        apply_focus_invoice_response(invoice, response_payload, db)
+        db.commit()
+        db.refresh(invoice)
+
+    return serialize_fiscal_invoice(invoice)
+
+
+@app.post("/fiscal/invoices/{ref}/cancel")
+def cancel_fiscal_invoice(
+    ref: str,
+    payload: FiscalCancelRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    invoice = db.query(models.FiscalInvoice).filter(models.FiscalInvoice.ref == ref).first()
+
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Nota fiscal nao encontrada")
+
+    if len(payload.justificativa.strip()) < 15:
+        raise HTTPException(status_code=400, detail="Justificativa de cancelamento muito curta")
+
+    document_type = focus_document_path(invoice.document_type)
+    response_payload = focus_nfe_request(
+        "DELETE",
+        f"/v2/{document_type}/{urllib.parse.quote(ref)}",
+        {"justificativa": payload.justificativa.strip()},
+        db,
+    )
+    apply_focus_invoice_response(invoice, response_payload, db)
+    invoice.status = invoice.status or "cancelamento_solicitado"
+    db.commit()
+    db.refresh(invoice)
+
+    return serialize_fiscal_invoice(invoice) | {"provider_response": response_payload}
+
+
+@app.get("/integrations/mercadolivre/status")
+def mercadolivre_status(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    return serialize_ml_status(db)
+
+
+@app.get("/integrations/mercadolivre/connect")
+def mercadolivre_connect(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    settings = require_ml_settings()
+    state = create_ml_oauth_state(user.id, db)
+    query = urllib.parse.urlencode(
+        {
+            "response_type": "code",
+            "client_id": settings["app_id"],
+            "redirect_uri": settings["redirect_uri"],
+            "state": state,
+        }
+    )
+    return {"authorization_url": f"{settings['auth_url']}?{query}"}
+
+
+@app.get("/mercadolivre/callback")
+def mercadolivre_callback(
+    code: str = "",
+    state: str = "",
+    error: str = "",
+    db: Session = Depends(get_db),
+):
+    settings = get_ml_settings()
+    return_url = settings["frontend_return_url"]
+    separator = "&" if "?" in return_url else "?"
+
+    def redirect_with(status: str):
+        return RedirectResponse(url=f"{return_url}{separator}ml_status={status}", status_code=302)
+
+    if error:
+        return redirect_with(f"erro:{urllib.parse.quote(error)}")
+
+    try:
+        consume_ml_oauth_state(state, db)
+
+        if not code:
+            raise HTTPException(status_code=400, detail="Codigo de autorizacao ausente")
+
+        token_payload = ml_token_request(
+            {
+                "grant_type": "authorization_code",
+                "client_id": settings["app_id"],
+                "client_secret": settings["secret_key"],
+                "code": code,
+                "redirect_uri": settings["redirect_uri"],
+            }
+        )
+        credential = save_ml_credential(token_payload, db)
+
+        try:
+            me = ml_authenticated_get("/users/me", db)
+            credential.nickname = str(me.get("nickname") or "")
+            db.commit()
+        except HTTPException:
+            pass
+
+        return redirect_with("conectado")
+    except HTTPException as exc:
+        return redirect_with(f"erro:{urllib.parse.quote(str(exc.detail))}")
+
+
+@app.post("/integrations/mercadolivre/disconnect")
+def mercadolivre_disconnect(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    credential = get_ml_credential(db)
+
+    if credential:
+        db.delete(credential)
+        db.commit()
+
+    return {"message": "Conta Mercado Livre desconectada"}
+
+
+@app.get("/integrations/mercadolivre/me")
+def mercadolivre_me(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    me = ml_authenticated_get("/users/me", db)
+    credential = get_ml_credential(db)
+
+    if credential and me.get("nickname"):
+        credential.nickname = str(me.get("nickname"))
+        db.commit()
+
+    return {
+        "id": me.get("id"),
+        "nickname": me.get("nickname"),
+        "email": me.get("email"),
+        "country_id": me.get("country_id"),
+        "site_id": me.get("site_id"),
+    }
 
 
 @app.post("/products")

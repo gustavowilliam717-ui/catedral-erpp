@@ -3675,6 +3675,210 @@ button {
   white-space: nowrap;
 }
 
+.fiscal-page .settings-content {
+  gap: 16px;
+}
+
+.fiscal-readiness-card {
+  display: grid;
+  gap: 14px;
+}
+
+.fiscal-readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.fiscal-readiness-grid label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: flex-start;
+  min-height: 92px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.fiscal-readiness-grid label.done {
+  border-color: #b7e4c7;
+  background: #effaf3;
+}
+
+.fiscal-readiness-grid input {
+  width: auto;
+  min-height: auto;
+  margin-top: 2px;
+}
+
+.fiscal-readiness-grid span {
+  display: grid;
+  gap: 4px;
+}
+
+.fiscal-readiness-grid strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.fiscal-readiness-grid small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.fiscal-config-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.fiscal-config-grid > div:first-child {
+  grid-column: 1 / -1;
+}
+
+.fiscal-config-grid label,
+.fiscal-issue-card label,
+.fiscal-cancel-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.fiscal-config-grid input,
+.fiscal-config-grid select,
+.fiscal-issue-card input,
+.fiscal-issue-card select,
+.fiscal-cancel-form input {
+  width: 100%;
+}
+
+.fiscal-config-grid .toggle-line {
+  grid-column: span 2;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+}
+
+.fiscal-config-grid .toggle-line input {
+  width: auto;
+  min-height: auto;
+}
+
+.fiscal-issue-card form {
+  display: grid;
+  gap: 12px;
+}
+
+.fiscal-form-row {
+  display: grid;
+  grid-template-columns: 160px minmax(220px, 1fr) auto auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.fiscal-json-editor {
+  width: 100%;
+  min-height: 360px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.fiscal-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fiscal-section-heading p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.fiscal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.fiscal-table th,
+.fiscal-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.fiscal-table th {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.fiscal-table td:last-child {
+  display: flex;
+  gap: 6px;
+}
+
+.fiscal-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.fiscal-detail-grid div {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.fiscal-detail-grid span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.fiscal-detail-grid strong {
+  overflow-wrap: anywhere;
+}
+
+.fiscal-link-row,
+.fiscal-cancel-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+}
+
+.fiscal-link-row a {
+  padding: 9px 12px;
+  border-radius: 7px;
+  background: var(--blue);
+  color: white;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.fiscal-cancel-form label {
+  flex: 1 1 320px;
+}
+
 .finance-total-row td {
   background: #f5f8fc;
   color: #172b43;
@@ -7395,6 +7599,25 @@ button:disabled {
   .finance-summary-strip,
   .finance-main-grid {
     grid-template-columns: 1fr;
+  }
+
+  .fiscal-config-grid,
+  .fiscal-readiness-grid,
+  .fiscal-form-row,
+  .fiscal-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .fiscal-config-grid .toggle-line {
+    grid-column: auto;
+  }
+
+  .fiscal-table {
+    min-width: 900px;
+  }
+
+  .fiscal-history-card {
+    overflow-x: auto;
   }
 }
 

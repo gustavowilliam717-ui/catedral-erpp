@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, Integer, String, Float, DateTime
+from sqlalchemy import Boolean, Column, Integer, String, Float, DateTime, Text
 from .database import Base
 
 
@@ -112,6 +112,22 @@ class StoreIntegration(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class MarketplaceCredential(Base):
+    __tablename__ = "marketplace_credentials"
+
+    id = Column(Integer, primary_key=True, index=True)
+    provider = Column(String, unique=True, index=True)
+    external_user_id = Column(String, default="", index=True)
+    nickname = Column(String, default="")
+    access_token = Column(Text, default="")
+    refresh_token = Column(Text, default="")
+    token_type = Column(String, default="bearer")
+    scope = Column(String, default="")
+    expires_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Setting(Base):
     __tablename__ = "settings"
 
@@ -119,4 +135,28 @@ class Setting(Base):
     key = Column(String, unique=True, index=True)
     value = Column(String, default="")
     group = Column(String, default="general")
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class FiscalInvoice(Base):
+    __tablename__ = "fiscal_invoices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ref = Column(String, unique=True, index=True)
+    document_type = Column(String, default="nfe", index=True)
+    provider = Column(String, default="focus_nfe")
+    status = Column(String, default="draft", index=True)
+    status_sefaz = Column(String, default="")
+    mensagem_sefaz = Column(String, default="")
+    chave = Column(String, default="", index=True)
+    numero = Column(String, default="")
+    serie = Column(String, default="")
+    valor_total = Column(Float, default=0)
+    customer_name = Column(String, default="")
+    customer_document = Column(String, default="")
+    request_payload = Column(Text, default="")
+    response_payload = Column(Text, default="")
+    pdf_url = Column(String, default="")
+    xml_url = Column(String, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)

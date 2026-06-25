@@ -8,6 +8,7 @@ import AccountSettings from "./pages/AccountSettings";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Finance from "./pages/Finance";
+import FiscalSettings from "./pages/FiscalSettings";
 import Pricing from "./pages/Pricing";
 import Stock from "./pages/Stock";
 import AdvancedSettings from "./pages/AdvancedSettings";
@@ -17,6 +18,7 @@ import DataSpace from "./pages/DataSpace";
 import ImportShopee from "./pages/ImportShopee";
 import Login from "./pages/Login";
 import MarketplaceFees from "./pages/MarketplaceFees";
+import MercadoLivreIntegration from "./pages/MercadoLivreIntegration";
 import ModulePlaceholder from "./pages/ModulePlaceholder";
 import OrderSettings from "./pages/OrderSettings";
 import Orders from "./pages/Orders";
@@ -31,8 +33,8 @@ import Purchases from "./pages/Purchases";
 import ShippingSettings from "./pages/ShippingSettings";
 import ShopeeIntegration from "./pages/ShopeeIntegration";
 import StoreIntegrations from "./pages/StoreIntegrations";
-import API from "./services/api";
-import { logError } from "./utils/logger";
+import API from "./services/api";
+import { logError } from "./utils/logger";
 
 import "./style.css";
 
@@ -101,6 +103,7 @@ function App() {
     "orders-canceled",
     "store-integrations",
     "shopee-api",
+    "mercado-livre-integration",
     "settings-orders",
     "settings-nfe",
     "settings-dce",
@@ -319,6 +322,7 @@ function App() {
         {page === "importShopee" && <ImportShopee />}
         {page === "store-integrations" && <StoreIntegrations />}
         {page === "shopee-api" && <ShopeeIntegration />}
+        {page === "mercado-livre-integration" && <MercadoLivreIntegration />}
         {accountPages.includes(page) && (
           <AccountSettings activePage={page} setPage={setPage} user={user} />
         )}
@@ -331,7 +335,9 @@ function App() {
         {advancedSettingsPages.includes(page) && (
           <AdvancedSettings activePage={page} setPage={setPage} />
         )}
+        {page === "settings-nfe" && <FiscalSettings />}
         {page.startsWith("settings-") &&
+          page !== "settings-nfe" &&
           !shippingSettingsPages.includes(page) &&
           !advancedSettingsPages.includes(page) && (
           <OrderSettings activePage={page} setPage={setPage} />

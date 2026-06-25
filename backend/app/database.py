@@ -63,6 +63,26 @@ VERIFICATION_CODE_COLUMN_MIGRATIONS = {
 }
 
 
+FISCAL_INVOICE_COLUMN_MIGRATIONS = {
+    "document_type": "VARCHAR DEFAULT 'nfe'",
+    "provider": "VARCHAR DEFAULT 'focus_nfe'",
+    "status": "VARCHAR DEFAULT 'draft'",
+    "status_sefaz": "VARCHAR DEFAULT ''",
+    "mensagem_sefaz": "VARCHAR DEFAULT ''",
+    "chave": "VARCHAR DEFAULT ''",
+    "numero": "VARCHAR DEFAULT ''",
+    "serie": "VARCHAR DEFAULT ''",
+    "valor_total": "FLOAT DEFAULT 0",
+    "customer_name": "VARCHAR DEFAULT ''",
+    "customer_document": "VARCHAR DEFAULT ''",
+    "request_payload": "TEXT DEFAULT ''",
+    "response_payload": "TEXT DEFAULT ''",
+    "pdf_url": "VARCHAR DEFAULT ''",
+    "xml_url": "VARCHAR DEFAULT ''",
+    "updated_at": "DATETIME",
+}
+
+
 def _ensure_columns(table_name: str, migrations: dict):
     inspector = inspect(engine)
 
@@ -95,3 +115,7 @@ def ensure_user_columns():
 
 def ensure_verification_code_columns():
     _ensure_columns("verification_codes", VERIFICATION_CODE_COLUMN_MIGRATIONS)
+
+
+def ensure_fiscal_invoice_columns():
+    _ensure_columns("fiscal_invoices", FISCAL_INVOICE_COLUMN_MIGRATIONS)
