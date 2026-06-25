@@ -90,7 +90,7 @@ export default function Login({ onAuthenticated }) {
       setForm((current) => ({ ...current, emailCode: "", smsCode: "" }));
     } catch (error) {
       logError(error);
-      setMessage(error?.response?.data?.detail || "Nao foi possivel enviar os codigos.");
+      setMessage(error?.response?.data?.detail || "Nao foi possivel enviar o codigo.");
     } finally {
       setIsLoading(false);
     }
@@ -106,8 +106,14 @@ export default function Login({ onAuthenticated }) {
         return;
       }
 
-      if (!form.emailCode || !form.smsCode) {
-        setMessage("Informe os codigos recebidos por email e SMS.");
+      const smsRequired = registerCodeInfo?.sms_required === true;
+
+      if (!form.emailCode || (smsRequired && !form.smsCode)) {
+        setMessage(
+          smsRequired
+            ? "Informe os codigos recebidos por email e SMS."
+            : "Informe o codigo recebido por email."
+        );
         return;
       }
 
@@ -448,23 +454,27 @@ export default function Login({ onAuthenticated }) {
                   onChange={(event) => update("emailCode", event.target.value)}
                 />
                 <button type="button" onClick={sendRegisterCode} disabled={isLoading}>
-                  Enviar codigos
+                  Enviar codigo
                 </button>
               </div>
 
-              <input
-                placeholder="Codigo recebido por SMS"
-                inputMode="numeric"
-                maxLength="6"
-                value={form.smsCode}
-                onChange={(event) => update("smsCode", event.target.value)}
-              />
+              {registerCodeInfo?.sms_required && (
+                <input
+                  placeholder="Codigo recebido por SMS"
+                  inputMode="numeric"
+                  maxLength="6"
+                  value={form.smsCode}
+                  onChange={(event) => update("smsCode", event.target.value)}
+                />
+              )}
 
               {registerCodeInfo && (
                 <div className="register-code-status">
-                  <strong>Codigos enviados</strong>
+                  <strong>
+                    {registerCodeInfo.sms_required ? "Codigos enviados" : "Codigo enviado"}
+                  </strong>
                   <span>Email: {registerCodeInfo.email}</span>
-                  <span>SMS: {registerCodeInfo.phone}</span>
+                  {registerCodeInfo.sms_required && <span>SMS: {registerCodeInfo.phone}</span>}
                 </div>
               )}
 

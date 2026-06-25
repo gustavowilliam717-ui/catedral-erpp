@@ -110,6 +110,33 @@ def get_smtp_settings():
     }
 
 
+def get_sms_settings():
+    provider = os.getenv("SMS_PROVIDER", "zenvia").lower().strip()
+    missing = []
+
+    if provider == "zenvia":
+        if not os.getenv("ZENVIA_API_TOKEN", "").strip():
+            missing.append("ZENVIA_API_TOKEN")
+        if not os.getenv("ZENVIA_FROM", "").strip():
+            missing.append("ZENVIA_FROM")
+    elif provider == "twilio":
+        if not os.getenv("TWILIO_ACCOUNT_SID", "").strip():
+            missing.append("TWILIO_ACCOUNT_SID")
+        if not os.getenv("TWILIO_AUTH_TOKEN", "").strip():
+            missing.append("TWILIO_AUTH_TOKEN")
+        if not os.getenv("TWILIO_FROM_NUMBER", "").strip():
+            missing.append("TWILIO_FROM_NUMBER")
+    else:
+        missing.append("SMS_PROVIDER")
+
+    return {
+        "configured": not missing,
+        "provider": provider,
+        "provider_valid": provider in {"zenvia", "twilio"},
+        "missing": missing,
+    }
+
+
 class ChatRequest(BaseModel):
     message: str
 
@@ -1019,7 +1046,18 @@ def send_zenvia_sms_code(phone: str, code: str, purpose: str):
 
 
 def send_sms_code(phone: str, code: str, purpose: str):
-    sms_provider = os.getenv("SMS_PROVIDER", "twilio").lower().strip()
+    sms_settings = get_sms_settings()
+    sms_provider = sms_settings["provider"]
+
+    if not sms_settings["configured"]:
+        if AUTH_DEV_MODE:
+            return False
+
+        missing = ", ".join(sms_settings["missing"])
+        raise HTTPException(
+            status_code=503,
+            detail=f"Envio de SMS nao configurado. Verifique no Railway: {missing}.",
+        )
 
     if sms_provider == "zenvia":
         return send_zenvia_sms_code(phone, code, purpose)
@@ -1089,15 +1127,17 @@ def create_verification_challenge(user: models.User, payload, db: Session):
 def create_registration_code(payload: RegisterCodeRequest, db: Session):
     email = normalize_email(payload.email)
     phone = normalize_phone(payload.phone)
+    sms_settings = get_sms_settings()
+    sms_required = sms_settings["configured"]
 
     if db.query(models.User).filter(models.User.email == email).first():
         raise HTTPException(status_code=400, detail="Este email ja possui cadastro")
 
     delete_expired_verification_codes(db)
     email_code = create_six_digit_code()
-    sms_code = create_six_digit_code()
+    sms_code = create_six_digit_code() if sms_required else ""
     email_sent = send_email_code(email, email_code, "cadastro")
-    sms_sent = send_sms_code(phone, sms_code, "cadastro")
+    sms_sent = send_sms_code(phone, sms_code, "cadastro") if sms_required else False
     db.query(models.VerificationCode).filter(
         models.VerificationCode.purpose == "registration",
         models.VerificationCode.email == email,
@@ -1108,9 +1148,9 @@ def create_registration_code(payload: RegisterCodeRequest, db: Session):
             challenge_id=secrets.token_urlsafe(32),
             email=email,
             phone=phone,
-            channel="email_sms",
+            channel="email_sms" if sms_required else "email",
             email_code_hash=hash_verification_code(email_code),
-            sms_code_hash=hash_verification_code(sms_code),
+            sms_code_hash=hash_verification_code(sms_code) if sms_required else "",
             expires_at=datetime.utcnow() + timedelta(minutes=10),
         )
     )
@@ -1122,13 +1162,14 @@ def create_registration_code(payload: RegisterCodeRequest, db: Session):
         "phone": phone,
         "email_sent": bool(email_sent),
         "sms_sent": bool(sms_sent),
+        "sms_required": sms_required,
         "expires_in_minutes": 10,
     }
 
     if AUTH_DEV_MODE:
         if not email_sent:
             result["dev_email_code"] = email_code
-        if not sms_sent:
+        if sms_required and not sms_sent:
             result["dev_sms_code"] = sms_code
 
     return result
@@ -1163,13 +1204,18 @@ def validate_registration_codes(
         db.commit()
         raise HTTPException(status_code=400, detail="Codigos de verificacao expirados")
 
-    if normalize_phone(phone) != registration.phone:
+    sms_required = bool(registration.sms_code_hash)
+
+    if sms_required and normalize_phone(phone) != registration.phone:
         raise HTTPException(status_code=400, detail="O celular informado precisa ser o mesmo que recebeu o SMS")
 
     clean_email_code = (email_code or fallback_code or "").strip()
-    clean_sms_code = (sms_code or fallback_code or "").strip()
+    clean_sms_code = (sms_code or fallback_code or "").strip() if sms_required else ""
 
-    if not clean_email_code or not clean_sms_code:
+    if not clean_email_code:
+        raise HTTPException(status_code=400, detail="Informe o codigo recebido por email")
+
+    if sms_required and not clean_sms_code:
         raise HTTPException(status_code=400, detail="Informe os codigos recebidos por email e SMS")
 
     def register_failed_attempt(detail: str):
@@ -1189,7 +1235,7 @@ def validate_registration_codes(
     if not verify_verification_code(clean_email_code, registration.email_code_hash):
         register_failed_attempt("Codigo de email invalido")
 
-    if not verify_verification_code(clean_sms_code, registration.sms_code_hash):
+    if sms_required and not verify_verification_code(clean_sms_code, registration.sms_code_hash):
         register_failed_attempt("Codigo de SMS invalido")
 
 
@@ -1323,6 +1369,19 @@ def email_health():
         "smtp_ssl": smtp_settings["smtp_ssl"],
         "auth_dev_mode": AUTH_DEV_MODE,
         "missing": smtp_settings["missing"],
+    }
+
+
+@app.get("/health/sms")
+def sms_health():
+    sms_settings = get_sms_settings()
+    return {
+        "status": "ok" if sms_settings["configured"] else "missing_config",
+        "configured": sms_settings["configured"],
+        "provider": sms_settings["provider"],
+        "provider_valid": sms_settings["provider_valid"],
+        "auth_dev_mode": AUTH_DEV_MODE,
+        "missing": sms_settings["missing"],
     }
 
 
