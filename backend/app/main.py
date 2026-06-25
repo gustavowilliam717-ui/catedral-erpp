@@ -141,6 +141,39 @@ def get_smtp_attempts(smtp_settings: dict):
     return attempts
 
 
+def get_email_provider():
+    provider = os.getenv("EMAIL_PROVIDER", "auto").lower().strip()
+
+    if provider in {"auto", "smtp", "resend"}:
+        return provider
+
+    return "auto"
+
+
+def get_resend_settings():
+    api_key = os.getenv("RESEND_API_KEY", "").strip()
+    from_address = (
+        os.getenv("RESEND_FROM")
+        or os.getenv("EMAIL_FROM")
+        or os.getenv("SMTP_FROM")
+        or ""
+    ).strip()
+
+    missing = []
+    if not api_key:
+        missing.append("RESEND_API_KEY")
+    if not from_address:
+        missing.append("RESEND_FROM")
+
+    return {
+        "configured": not missing,
+        "missing": missing,
+        "api_key": api_key,
+        "from_address": from_address,
+        "api_url": os.getenv("RESEND_API_URL", "https://api.resend.com/emails").strip(),
+    }
+
+
 def get_sms_settings():
     provider = os.getenv("SMS_PROVIDER", "zenvia").lower().strip()
     missing = []
@@ -935,6 +968,81 @@ def serialize_ml_status(db: Session):
 
 
 def send_email_code(email: str, code: str, purpose: str):
+    subject = "Codigo de verificacao NEXTERP"
+    body = "\n".join(
+        [
+            "NEXTERP",
+            "",
+            f"Seu codigo para {purpose} e {code}.",
+            "Ele expira em 10 minutos.",
+            "",
+            "Se voce nao solicitou este acesso, ignore esta mensagem.",
+        ]
+    )
+    provider = get_email_provider()
+    resend_settings = get_resend_settings()
+
+    if provider == "resend" or (provider == "auto" and resend_settings["configured"]):
+        return send_resend_email(email, subject, body, resend_settings)
+
+    return send_smtp_email(email, subject, body)
+
+
+def send_resend_email(email: str, subject: str, body: str, resend_settings: dict):
+    if not resend_settings["configured"]:
+        if AUTH_DEV_MODE:
+            return False
+
+        missing = ", ".join(resend_settings["missing"])
+        raise HTTPException(
+            status_code=503,
+            detail=f"Envio de email via Resend nao configurado. Verifique no Railway: {missing}.",
+        )
+
+    payload = json.dumps(
+        {
+            "from": resend_settings["from_address"],
+            "to": [email],
+            "subject": subject,
+            "text": body,
+        }
+    ).encode("utf-8")
+
+    request = urllib.request.Request(
+        resend_settings["api_url"],
+        data=payload,
+        method="POST",
+    )
+    request.add_header("Authorization", f"Bearer {resend_settings['api_key']}")
+    request.add_header("Content-Type", "application/json")
+    request.add_header("User-Agent", "nexterp/1.0")
+
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            if 200 <= response.status < 300:
+                return True
+
+            response_body = response.read().decode("utf-8", errors="replace")
+            raise HTTPException(
+                status_code=502,
+                detail=f"Falha ao enviar email via Resend: HTTP {response.status} {response_body}",
+            )
+    except urllib.error.HTTPError as exc:
+        response_body = exc.read().decode("utf-8", errors="replace")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Falha ao enviar email via Resend: HTTP {exc.code} {response_body}",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Falha ao enviar email via Resend: {type(exc).__name__}: {exc}",
+        )
+
+
+def send_smtp_email(email: str, subject: str, body: str):
     smtp_settings = get_smtp_settings()
 
     if not smtp_settings["configured"]:
@@ -944,25 +1052,14 @@ def send_email_code(email: str, code: str, purpose: str):
         missing = ", ".join(smtp_settings["missing"])
         raise HTTPException(
             status_code=503,
-            detail=f"Envio de email nao configurado. Verifique no Railway: {missing}.",
+            detail=f"Envio de email SMTP nao configurado. Verifique no Railway: {missing}.",
         )
 
     message = EmailMessage()
-    message["Subject"] = "Codigo de verificacao NEXTERP"
+    message["Subject"] = subject
     message["From"] = smtp_settings["smtp_from"]
     message["To"] = email
-    message.set_content(
-        "\n".join(
-            [
-                "NEXTERP",
-                "",
-                f"Seu codigo para {purpose} e {code}.",
-                "Ele expira em 10 minutos.",
-                "",
-                "Se voce nao solicitou este acesso, ignore esta mensagem.",
-            ]
-        )
-    )
+    message.set_content(body)
 
     errors = []
 
@@ -1392,10 +1489,31 @@ def database_health(db: Session = Depends(get_db)):
 
 @app.get("/health/email")
 def email_health():
+    provider = get_email_provider()
     smtp_settings = get_smtp_settings()
+    resend_settings = get_resend_settings()
+    effective_provider = (
+        "resend"
+        if provider == "resend" or (provider == "auto" and resend_settings["configured"])
+        else "smtp"
+    )
     return {
-        "status": "ok" if smtp_settings["configured"] else "missing_config",
-        "configured": smtp_settings["configured"],
+        "status": (
+            "ok"
+            if (effective_provider == "resend" and resend_settings["configured"])
+            or (effective_provider == "smtp" and smtp_settings["configured"])
+            else "missing_config"
+        ),
+        "configured": (
+            resend_settings["configured"]
+            if effective_provider == "resend"
+            else smtp_settings["configured"]
+        ),
+        "provider": provider,
+        "effective_provider": effective_provider,
+        "resend_configured": resend_settings["configured"],
+        "resend_from_configured": bool(resend_settings["from_address"]),
+        "resend_missing": resend_settings["missing"],
         "smtp_host_configured": bool(smtp_settings["smtp_host"]),
         "smtp_port": smtp_settings["smtp_port"],
         "smtp_port_valid": smtp_settings["port_valid"],
@@ -1408,7 +1526,7 @@ def email_health():
         "smtp_tls": smtp_settings["smtp_tls"],
         "smtp_ssl": smtp_settings["smtp_ssl"],
         "auth_dev_mode": AUTH_DEV_MODE,
-        "missing": smtp_settings["missing"],
+        "missing": resend_settings["missing"] if effective_provider == "resend" else smtp_settings["missing"],
     }
 
 
