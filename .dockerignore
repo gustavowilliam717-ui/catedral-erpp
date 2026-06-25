@@ -1,0 +1,7 @@
+.git
+**/node_modules
+**/dist
+**/.venv
+backend/.env
+*.db
+catedral-erp-logo.png
