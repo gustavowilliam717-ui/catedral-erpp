@@ -1,4 +1,4 @@
-# Catedral ERP - Backend
+# NEXTERP - Backend
 
 ## Rodar com SQLite
 

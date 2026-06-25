@@ -1,4 +1,4 @@
-CATEDRAL ERP - PRIMEIRA VERSÃO MVP
+NEXTERP - PRIMEIRA VERSAO MVP
 
 Este pacote contém:
 1. Backend em Python com FastAPI

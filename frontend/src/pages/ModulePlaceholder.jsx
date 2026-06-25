@@ -69,7 +69,7 @@ export default function ModulePlaceholder({ page }) {
   const modulePage = findModulePage(page);
   const title = modulePage?.label || "Modulo em construcao";
   const group = modulePage?.group || "ERP";
-  const module = modulePage?.module || "Catedral ERP";
+  const module = modulePage?.module || "NEXTERP";
   const needs = resolveNeeds(page);
 
   return (

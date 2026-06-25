@@ -17,7 +17,7 @@ const setupSteps = [
   },
   {
     title: "4. Conectar a conta",
-    text: "Clique em Conectar Mercado Livre, faca login e autorize o Catedral ERP a acessar a conta.",
+    text: "Clique em Conectar Mercado Livre, faca login e autorize a NEXTERP a acessar a conta.",
   },
 ];
 
@@ -129,7 +129,7 @@ export default function MercadoLivreIntegration() {
           <span>Mercado Livre Developers</span>
           <h1>Integracao com o Mercado Livre</h1>
           <p>
-            Conecte a conta do Mercado Livre via OAuth para o Catedral ERP acessar
+            Conecte a conta do Mercado Livre via OAuth para a NEXTERP acessar
             pedidos, anuncios e estoque pela API oficial. Este e o primeiro passo:
             autorizar a conta.
           </p>

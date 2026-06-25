@@ -33,7 +33,7 @@ const pageTitles = {
   "orders-history": "Pedidos Historicos",
   "orders-canceled": "Anulado",
   stock: "Estoque",
-  chat: "Assistente Catedral",
+  chat: "Assistente NEXTERP",
   plans: "Planos",
   "app-download": "Baixe o App",
   "product-importer": "Importacao de Produto",
@@ -74,7 +74,7 @@ const pageTitles = {
 
 export default function Topbar({ page }) {
   const modulePage = findModulePage(page);
-  const title = pageTitles[page] || modulePage?.label || "Catedral ERP";
+  const title = pageTitles[page] || modulePage?.label || "NEXTERP";
   const subtitle = modulePage
     ? `${modulePage.module} / ${modulePage.group}`
     : "Central de operacao para produtos, estoque e marketplaces.";
@@ -88,7 +88,7 @@ export default function Topbar({ page }) {
 
       <div className="toolbar-actions">
         <span className="status-chip ok">API ativa</span>
-        <span className="status-chip">Loja Catedral</span>
+        <span className="status-chip">Loja Principal</span>
       </div>
     </div>
   );

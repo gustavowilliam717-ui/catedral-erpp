@@ -16,7 +16,7 @@ const orderSteps = [
   },
   {
     title: "2. Autorizar loja",
-    text: "O lojista faz login e autoriza o Catedral ERP a acessar a loja.",
+    text: "O lojista faz login e autoriza a NEXTERP a acessar a loja.",
   },
   {
     title: "3. Buscar pedidos",

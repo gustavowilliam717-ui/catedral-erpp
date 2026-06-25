@@ -85,7 +85,7 @@ export default function Sidebar({ page, setPage, user, onLogout }) {
               <span className="rocket-window" />
             </span>
           </span>
-          <strong>Catedral ERP</strong>
+          <strong>NEXTERP</strong>
         </button>
 
         <nav className="main-nav" aria-label="Navegacao principal">
@@ -229,7 +229,7 @@ export default function Sidebar({ page, setPage, user, onLogout }) {
             {accountOpen && (
               <div className="account-popover">
                 <div className="account-plan-card">
-                  <span>Catedral ERP Pro</span>
+                  <span>NEXTERP Pro</span>
                   <strong>12/07/2026</strong>
                   <button
                     type="button"

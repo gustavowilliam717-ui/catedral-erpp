@@ -246,7 +246,7 @@ export default function Login({ onAuthenticated }) {
               <span className="rocket-window" />
             </span>
           </span>
-          <strong>Catedral ERP</strong>
+          <strong>NEXTERP</strong>
         </button>
 
         <select defaultValue="pt-br" aria-label="Idioma">
@@ -335,12 +335,12 @@ export default function Login({ onAuthenticated }) {
             </span>
             <h2>
               {mode === "register"
-                ? "Criar conta Catedral ERP"
+                ? "Criar conta NEXTERP"
                 : verification
                 ? "Confirme seu acesso"
                 : needsSetup
                   ? "Criar administrador"
-                  : "Entrar na Catedral ERP"}
+                  : "Entrar na NEXTERP"}
             </h2>
           </div>
 
@@ -618,7 +618,7 @@ function LegalModal({ type, onClose }) {
       <section className="legal-modal">
         <header>
           <div>
-            <span>Catedral ERP</span>
+            <span>NEXTERP</span>
             <h2>{title}</h2>
             <p>{updated}</p>
           </div>
@@ -651,7 +651,7 @@ const termsSections = [
   {
     title: "1. Visao geral",
     text:
-      "A Catedral ERP fornece uma plataforma para gestao de operacoes de marketplace, incluindo produtos, pedidos, estoque, precificacao, financeiro, SAC, integracoes e automacoes. Ao acessar a plataforma, voce declara que leu e concorda com estes termos.",
+      "A NEXTERP fornece uma plataforma para gestao de operacoes de marketplace, incluindo produtos, pedidos, estoque, precificacao, financeiro, SAC, integracoes e automacoes. Ao acessar a plataforma, voce declara que leu e concorda com estes termos.",
   },
   {
     title: "2. Conta e acesso",
@@ -661,7 +661,7 @@ const termsSections = [
   {
     title: "3. Plano e pagamento",
     text:
-      "A Catedral ERP trabalha com um plano unico de R$ 389,00 por mes. Recursos, limites, valores e condicoes comerciais podem ser atualizados mediante aviso ao cliente dentro da plataforma ou por canais oficiais.",
+      "A NEXTERP trabalha com um plano unico de R$ 389,00 por mes. Recursos, limites, valores e condicoes comerciais podem ser atualizados mediante aviso ao cliente dentro da plataforma ou por canais oficiais.",
   },
   {
     title: "4. Uso comercial",
@@ -699,7 +699,7 @@ const privacySections = [
   {
     title: "1. Visao geral",
     text:
-      "Esta Politica explica como a Catedral ERP coleta, utiliza, armazena, protege e compartilha dados pessoais durante o uso da plataforma de gestao para ecommerce e marketplaces.",
+      "Esta Politica explica como a NEXTERP coleta, utiliza, armazena, protege e compartilha dados pessoais durante o uso da plataforma de gestao para ecommerce e marketplaces.",
   },
   {
     title: "2. Conta e autenticacao",
@@ -764,7 +764,7 @@ const privacySections = [
   {
     title: "14. Criancas e adolescentes",
     text:
-      "A Catedral ERP e destinada a uso empresarial e profissional. A plataforma nao e direcionada a menores de idade, e nao deve ser utilizada por criancas ou adolescentes sem base legal adequada.",
+      "A NEXTERP e destinada a uso empresarial e profissional. A plataforma nao e direcionada a menores de idade, e nao deve ser utilizada por criancas ou adolescentes sem base legal adequada.",
   },
   {
     title: "15. Cookies, tokens e armazenamento local",
@@ -774,6 +774,6 @@ const privacySections = [
   {
     title: "16. Atualizacoes e contato",
     text:
-      "Esta politica pode ser atualizada para refletir novas funcionalidades, exigencias legais ou mudancas operacionais. Duvidas, solicitacoes e pedidos de privacidade podem ser enviados ao suporte oficial da Catedral ERP.",
+      "Esta politica pode ser atualizada para refletir novas funcionalidades, exigencias legais ou mudancas operacionais. Duvidas, solicitacoes e pedidos de privacidade podem ser enviados ao suporte oficial da NEXTERP.",
   },
 ];

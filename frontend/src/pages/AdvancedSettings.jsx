@@ -427,7 +427,7 @@ function InventorySettings() {
               checked={settings.autoSyncStock}
               onChange={() => update("autoSyncStock")}
             >
-              Atualizar automaticamente o estoque do Catedral ERP para o
+              Atualizar automaticamente o estoque da NEXTERP para o
               marketplace conectado.
             </InventoryToggleRow>
           </div>

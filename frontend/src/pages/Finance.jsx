@@ -269,9 +269,9 @@ export default function Finance({ activePage = "finance", setPage }) {
       settlementDate: "Hoje",
       description: item.description || "Receita sem descricao",
       category: item.category || "Receita",
-      store: item.category || "Canal Catedral",
+      store: item.category || "Canal NEXTERP",
       party: "Cliente / Marketplace",
-      account: "Conta Catedral",
+      account: "Conta NEXTERP",
       status: "Recebido",
       value: Number(item.value || 0),
       cost: 0,
@@ -293,7 +293,7 @@ export default function Finance({ activePage = "finance", setPage }) {
       category: item.category || "Despesa",
       store: "Centro de custo",
       party: "Fornecedor / Prestador",
-      account: "Conta Catedral",
+      account: "Conta NEXTERP",
       status: "Nao pago",
       value: Number(item.value || 0),
       cost: Number(item.value || 0),
@@ -756,7 +756,7 @@ function ProfitReportTable({ rows }) {
               </td>
               <td>
                 <strong>{row.store}</strong>
-                <span>{profitChannels.find((item) => item.key === row.channel)?.label || "Catedral"}</span>
+                <span>{profitChannels.find((item) => item.key === row.channel)?.label || "NEXTERP"}</span>
               </td>
               <td>{formatCurrency(row.value)}</td>
               <td>{formatCurrency(row.value)}</td>

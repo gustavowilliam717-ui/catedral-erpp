@@ -1,9 +1,25 @@
 import axios from "axios";
 
+const LEGACY_RAILWAY_API_URL = "https://catedral-erpp-production.up.railway.app";
+const PRODUCTION_API_URL = "https://api.catedralerp.com.br";
+const LOCAL_API_URL = "http://127.0.0.1:8000";
+
+function resolveApiBaseUrl() {
+  const configuredUrl = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+
+  if (!import.meta.env.PROD) {
+    return configuredUrl || LOCAL_API_URL;
+  }
+
+  if (!configuredUrl || configuredUrl === LEGACY_RAILWAY_API_URL) {
+    return PRODUCTION_API_URL;
+  }
+
+  return configuredUrl;
+}
+
 const API = axios.create({
-  baseURL:
-    import.meta.env.VITE_API_URL ||
-    (import.meta.env.PROD ? "" : "http://127.0.0.1:8000"),
+  baseURL: resolveApiBaseUrl(),
 });
 
 API.interceptors.request.use((config) => {

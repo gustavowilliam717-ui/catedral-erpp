@@ -283,7 +283,7 @@ export default function Dashboard() {
             <i />
             Operacao online
           </span>
-          <h1>Painel Catedral</h1>
+          <h1>Painel NEXTERP</h1>
           <p>
             Visao executiva da operacao: margem, estoque, precificacao e alertas
             em um unico cockpit.

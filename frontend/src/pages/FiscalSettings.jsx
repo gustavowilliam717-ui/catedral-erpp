@@ -77,7 +77,7 @@ function buildSampleNfe(config) {
     indicador_intermediario: 0,
     cnpj_emitente: onlyDigits(config.company_document) || "SEU_CNPJ_NUMERICO",
     nome_emitente: config.company_name || "Sua Razao Social Ltda",
-    nome_fantasia_emitente: "Catedral ERP",
+    nome_fantasia_emitente: "NEXTERP",
     logradouro_emitente: "Rua Exemplo",
     numero_emitente: "100",
     bairro_emitente: "Centro",

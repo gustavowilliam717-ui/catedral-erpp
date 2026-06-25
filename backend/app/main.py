@@ -62,6 +62,54 @@ def get_allowed_origins():
 
     return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
+
+def parse_bool_env(name: str, default: str = "false"):
+    return os.getenv(name, default).lower().strip() == "true"
+
+
+def get_smtp_settings():
+    raw_port = os.getenv("SMTP_PORT", "587").strip()
+    port_valid = True
+
+    try:
+        smtp_port = int(raw_port)
+    except ValueError:
+        smtp_port = 587
+        port_valid = False
+
+    smtp_host = os.getenv("SMTP_HOST", "").strip()
+    smtp_user = os.getenv("SMTP_USER", "").strip()
+    smtp_password = os.getenv("SMTP_PASSWORD", "")
+    smtp_from = (os.getenv("SMTP_FROM") or smtp_user).strip()
+    smtp_tls = parse_bool_env("SMTP_TLS", "true")
+    smtp_ssl = parse_bool_env("SMTP_SSL", "false") or smtp_port == 465
+
+    missing = []
+    if not smtp_host:
+        missing.append("SMTP_HOST")
+    if not smtp_from:
+        missing.append("SMTP_FROM")
+    if not port_valid:
+        missing.append("SMTP_PORT")
+    if smtp_user and not smtp_password:
+        missing.append("SMTP_PASSWORD")
+    if smtp_password and not smtp_user:
+        missing.append("SMTP_USER")
+
+    return {
+        "configured": not missing,
+        "missing": missing,
+        "smtp_host": smtp_host,
+        "smtp_port": smtp_port,
+        "smtp_user": smtp_user,
+        "smtp_password": smtp_password,
+        "smtp_from": smtp_from,
+        "smtp_tls": smtp_tls,
+        "smtp_ssl": smtp_ssl,
+        "port_valid": port_valid,
+    }
+
+
 class ChatRequest(BaseModel):
     message: str
 
@@ -829,31 +877,26 @@ def serialize_ml_status(db: Session):
 
 
 def send_email_code(email: str, code: str, purpose: str):
-    smtp_host = os.getenv("SMTP_HOST")
-    smtp_port = int(os.getenv("SMTP_PORT", "587"))
-    smtp_user = os.getenv("SMTP_USER")
-    smtp_password = os.getenv("SMTP_PASSWORD")
-    smtp_from = os.getenv("SMTP_FROM") or smtp_user
-    smtp_tls = os.getenv("SMTP_TLS", "true").lower() == "true"
-    smtp_ssl = os.getenv("SMTP_SSL", "false").lower() == "true" or smtp_port == 465
+    smtp_settings = get_smtp_settings()
 
-    if not smtp_host or not smtp_from:
+    if not smtp_settings["configured"]:
         if AUTH_DEV_MODE:
             return False
 
+        missing = ", ".join(smtp_settings["missing"])
         raise HTTPException(
             status_code=503,
-            detail="Envio de email nao configurado. Configure SMTP_HOST e SMTP_FROM no backend/.env.",
+            detail=f"Envio de email nao configurado. Verifique no Railway: {missing}.",
         )
 
     message = EmailMessage()
-    message["Subject"] = "Codigo de verificacao Catedral ERP"
-    message["From"] = smtp_from
+    message["Subject"] = "Codigo de verificacao NEXTERP"
+    message["From"] = smtp_settings["smtp_from"]
     message["To"] = email
     message.set_content(
         "\n".join(
             [
-                "Catedral ERP",
+                "NEXTERP",
                 "",
                 f"Seu codigo para {purpose} e {code}.",
                 "Ele expira em 10 minutos.",
@@ -864,13 +907,17 @@ def send_email_code(email: str, code: str, purpose: str):
     )
 
     try:
-        smtp_client = smtplib.SMTP_SSL if smtp_ssl else smtplib.SMTP
-        with smtp_client(smtp_host, smtp_port, timeout=20) as server:
-            if smtp_tls and not smtp_ssl:
+        smtp_client = smtplib.SMTP_SSL if smtp_settings["smtp_ssl"] else smtplib.SMTP
+        with smtp_client(
+            smtp_settings["smtp_host"],
+            smtp_settings["smtp_port"],
+            timeout=20,
+        ) as server:
+            if smtp_settings["smtp_tls"] and not smtp_settings["smtp_ssl"]:
                 server.starttls()
 
-            if smtp_user and smtp_password:
-                server.login(smtp_user, smtp_password)
+            if smtp_settings["smtp_user"] and smtp_settings["smtp_password"]:
+                server.login(smtp_settings["smtp_user"], smtp_settings["smtp_password"])
 
             server.send_message(message)
         return True
@@ -881,7 +928,7 @@ def send_email_code(email: str, code: str, purpose: str):
 
 
 def build_sms_body(code: str, purpose: str):
-    return f"Catedral ERP: seu codigo para {purpose} e {code}. Expira em 10 minutos."
+    return f"NEXTERP: seu codigo para {purpose} e {code}. Expira em 10 minutos."
 
 
 def send_twilio_sms_code(phone: str, code: str, purpose: str):
@@ -1229,7 +1276,7 @@ ensure_fiscal_invoice_columns()
 ensure_user_columns()
 ensure_verification_code_columns()
 
-app = FastAPI(title="Catedral ERP")
+app = FastAPI(title="NEXTERP")
 
 app.add_middleware(
     CORSMiddleware,
@@ -1246,7 +1293,7 @@ def home():
     if index_file.exists():
         return FileResponse(index_file)
 
-    return {"message": "Catedral ERP rodando com sucesso"}
+    return {"message": "NEXTERP rodando com sucesso"}
 
 
 @app.get("/health/database")
@@ -1256,6 +1303,26 @@ def database_health(db: Session = Depends(get_db)):
         "status": "ok",
         "database": engine.url.get_backend_name(),
         "driver": engine.url.get_driver_name(),
+    }
+
+
+@app.get("/health/email")
+def email_health():
+    smtp_settings = get_smtp_settings()
+    return {
+        "status": "ok" if smtp_settings["configured"] else "missing_config",
+        "configured": smtp_settings["configured"],
+        "smtp_host_configured": bool(smtp_settings["smtp_host"]),
+        "smtp_port": smtp_settings["smtp_port"],
+        "smtp_port_valid": smtp_settings["port_valid"],
+        "smtp_from_configured": bool(smtp_settings["smtp_from"]),
+        "smtp_auth_configured": bool(
+            smtp_settings["smtp_user"] and smtp_settings["smtp_password"]
+        ),
+        "smtp_tls": smtp_settings["smtp_tls"],
+        "smtp_ssl": smtp_settings["smtp_ssl"],
+        "auth_dev_mode": AUTH_DEV_MODE,
+        "missing": smtp_settings["missing"],
     }
 
 
@@ -1401,7 +1468,7 @@ def chat(request: ChatRequest, user: models.User = Depends(require_user)):
         completion = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Você é um assistente inteligente para o ERP Catedral, ajudando com informações sobre estoque, marketplace, precificação e processos de vendas."},
+                {"role": "system", "content": "Voce e um assistente inteligente da NEXTERP, ajudando com informacoes sobre estoque, marketplace, precificacao e processos de vendas."},
                 {"role": "user", "content": request.message},
             ],
             max_tokens=500,
@@ -2197,6 +2264,12 @@ if (FRONTEND_DIST / "assets").exists():
 
 @app.get("/{full_path:path}")
 def serve_frontend(full_path: str):
+    api_only_prefixes = {"auth", "health", "fiscal", "integrations", "mercadolivre"}
+    first_path_part = full_path.split("/", 1)[0]
+
+    if first_path_part in api_only_prefixes:
+        raise HTTPException(status_code=404, detail="Endpoint nao encontrado")
+
     index_file = FRONTEND_DIST / "index.html"
 
     if index_file.exists():
