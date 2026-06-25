@@ -1,0 +1,4 @@
+# Forca o Railway/Nixpacks a provisionar Node (frontend) e Python (backend).
+# Sem isso, o Nixpacks detecta apenas Python, o "npm" nao existe no build e o
+# frontend nunca e gerado (o backend cai no JSON de fallback).
+providers = ["python", "node"]
