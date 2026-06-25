@@ -69,13 +69,21 @@ def parse_bool_env(name: str, default: str = "false"):
 
 def get_smtp_settings():
     raw_port = os.getenv("SMTP_PORT", "587").strip()
+    raw_timeout = os.getenv("SMTP_TIMEOUT", "8").strip()
     port_valid = True
+    timeout_valid = True
 
     try:
         smtp_port = int(raw_port)
     except ValueError:
         smtp_port = 587
         port_valid = False
+
+    try:
+        smtp_timeout = int(raw_timeout)
+    except ValueError:
+        smtp_timeout = 8
+        timeout_valid = False
 
     smtp_host = os.getenv("SMTP_HOST", "").strip()
     smtp_user = os.getenv("SMTP_USER", "").strip()
@@ -91,6 +99,8 @@ def get_smtp_settings():
         missing.append("SMTP_FROM")
     if not port_valid:
         missing.append("SMTP_PORT")
+    if not timeout_valid:
+        missing.append("SMTP_TIMEOUT")
     if smtp_user and not smtp_password:
         missing.append("SMTP_PASSWORD")
     if smtp_password and not smtp_user:
@@ -106,8 +116,29 @@ def get_smtp_settings():
         "smtp_from": smtp_from,
         "smtp_tls": smtp_tls,
         "smtp_ssl": smtp_ssl,
+        "smtp_timeout": smtp_timeout,
         "port_valid": port_valid,
+        "timeout_valid": timeout_valid,
     }
+
+
+def get_smtp_attempts(smtp_settings: dict):
+    attempts = [smtp_settings]
+    host = smtp_settings["smtp_host"].lower()
+    already_using_gmail_ssl = (
+        host == "smtp.gmail.com"
+        and smtp_settings["smtp_port"] == 465
+        and smtp_settings["smtp_ssl"]
+    )
+
+    if host == "smtp.gmail.com" and not already_using_gmail_ssl:
+        fallback = smtp_settings.copy()
+        fallback["smtp_port"] = 465
+        fallback["smtp_ssl"] = True
+        fallback["smtp_tls"] = False
+        attempts.append(fallback)
+
+    return attempts
 
 
 def get_sms_settings():
@@ -933,25 +964,32 @@ def send_email_code(email: str, code: str, purpose: str):
         )
     )
 
-    try:
-        smtp_client = smtplib.SMTP_SSL if smtp_settings["smtp_ssl"] else smtplib.SMTP
-        with smtp_client(
-            smtp_settings["smtp_host"],
-            smtp_settings["smtp_port"],
-            timeout=20,
-        ) as server:
-            if smtp_settings["smtp_tls"] and not smtp_settings["smtp_ssl"]:
-                server.starttls()
+    errors = []
 
-            if smtp_settings["smtp_user"] and smtp_settings["smtp_password"]:
-                server.login(smtp_settings["smtp_user"], smtp_settings["smtp_password"])
+    for attempt in get_smtp_attempts(smtp_settings):
+        try:
+            smtp_client = smtplib.SMTP_SSL if attempt["smtp_ssl"] else smtplib.SMTP
+            with smtp_client(
+                attempt["smtp_host"],
+                attempt["smtp_port"],
+                timeout=attempt["smtp_timeout"],
+            ) as server:
+                if attempt["smtp_tls"] and not attempt["smtp_ssl"]:
+                    server.starttls()
 
-            server.send_message(message)
-        return True
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Falha ao enviar email: {exc}")
+                if attempt["smtp_user"] and attempt["smtp_password"]:
+                    server.login(attempt["smtp_user"], attempt["smtp_password"])
+
+                server.send_message(message)
+            return True
+        except Exception as exc:
+            mode = "ssl" if attempt["smtp_ssl"] else "tls"
+            errors.append(
+                f"{attempt['smtp_host']}:{attempt['smtp_port']} ({mode}) "
+                f"{type(exc).__name__}: {exc}"
+            )
+
+    raise HTTPException(status_code=502, detail="Falha ao enviar email: " + " | ".join(errors))
 
 
 def build_sms_body(code: str, purpose: str):
@@ -1361,6 +1399,8 @@ def email_health():
         "smtp_host_configured": bool(smtp_settings["smtp_host"]),
         "smtp_port": smtp_settings["smtp_port"],
         "smtp_port_valid": smtp_settings["port_valid"],
+        "smtp_timeout": smtp_settings["smtp_timeout"],
+        "smtp_timeout_valid": smtp_settings["timeout_valid"],
         "smtp_from_configured": bool(smtp_settings["smtp_from"]),
         "smtp_auth_configured": bool(
             smtp_settings["smtp_user"] and smtp_settings["smtp_password"]
