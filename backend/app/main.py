@@ -1796,12 +1796,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# index.html nunca pode ficar em cache: ele aponta para os bundles com hash.
+# Se o navegador guardar um index antigo, o usuario fica preso numa versao velha.
+NO_CACHE_HEADERS = {
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
+
 @app.get("/")
 def home():
     index_file = FRONTEND_DIST / "index.html"
 
     if index_file.exists():
-        return FileResponse(index_file)
+        return FileResponse(index_file, headers=NO_CACHE_HEADERS)
 
     return {"message": "NEXT ERP rodando com sucesso"}
 
@@ -2960,6 +2969,6 @@ def serve_frontend(full_path: str):
     index_file = FRONTEND_DIST / "index.html"
 
     if index_file.exists():
-        return FileResponse(index_file)
+        return FileResponse(index_file, headers=NO_CACHE_HEADERS)
 
     raise HTTPException(status_code=404, detail="Frontend nao publicado")
