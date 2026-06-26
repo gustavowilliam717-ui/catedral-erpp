@@ -1190,7 +1190,7 @@ def _ml_try_get_item(item_id: str, db: Session):
         item = ml_authenticated_get(f"/items/{item_id}", db)
         return item if item and item.get("id") else None
     except HTTPException as exc:
-        if exc.status_code == 404:
+        if exc.status_code in (400, 403, 404):
             return None
         raise
 
@@ -1199,7 +1199,7 @@ def _ml_item_from_product(product_id: str, db: Session):
     try:
         product = ml_authenticated_get(f"/products/{product_id}", db)
     except HTTPException as exc:
-        if exc.status_code == 404:
+        if exc.status_code in (400, 403, 404):
             return None
         raise
 
