@@ -1185,14 +1185,24 @@ def extract_ml_reference(value: str):
     return ("product" if is_product else "item"), reference_id
 
 
-def resolve_ml_item_id(value: str, db: Session):
-    kind, reference_id = extract_ml_reference(value)
+def _ml_try_get_item(item_id: str, db: Session):
+    try:
+        item = ml_authenticated_get(f"/items/{item_id}", db)
+        return item if item and item.get("id") else None
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return None
+        raise
 
-    if kind == "item":
-        return reference_id
 
-    # Link de catalogo: resolve para um anuncio real (vencedor do buy box).
-    product = ml_authenticated_get(f"/products/{reference_id}", db)
+def _ml_item_from_product(product_id: str, db: Session):
+    try:
+        product = ml_authenticated_get(f"/products/{product_id}", db)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return None
+        raise
+
     winner = product.get("buy_box_winner") or {}
     item_id = winner.get("item_id")
 
@@ -1203,20 +1213,37 @@ def resolve_ml_item_id(value: str, db: Session):
             item_id = first if isinstance(first, str) else (first or {}).get("item_id")
 
     if not item_id:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Esse link e de um produto de catalogo sem anuncio disponivel. "
-                "Abra o anuncio de um vendedor e copie o link que comeca com "
-                "produto.mercadolivre.com.br/MLB-..."
-            ),
+        return None
+
+    return _ml_try_get_item(str(item_id), db)
+
+
+def resolve_ml_item(value: str, db: Session):
+    kind, reference_id = extract_ml_reference(value)
+    order = ("item", "product") if kind == "item" else ("product", "item")
+
+    for attempt in order:
+        item = (
+            _ml_try_get_item(reference_id, db)
+            if attempt == "item"
+            else _ml_item_from_product(reference_id, db)
         )
+        if item:
+            return item
 
-    return str(item_id)
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            "Nao foi possivel encontrar este anuncio no Mercado Livre. "
+            "Confira se o link e de um anuncio ATIVO e tente o link no formato "
+            "produto.mercadolivre.com.br/MLB-..."
+        ),
+    )
 
 
-def fetch_ml_listing(item_id: str, db: Session):
-    item = ml_authenticated_get(f"/items/{item_id}", db)
+def fetch_ml_listing(value: str, db: Session):
+    item = resolve_ml_item(value, db)
+    item_id = item.get("id")
 
     description_text = ""
     try:
@@ -2556,8 +2583,7 @@ def mercadolivre_copy_preview(
     user: models.User = Depends(require_user),
 ):
     require_ml_connection(db)
-    item_id = resolve_ml_item_id(payload.url or payload.source_id, db)
-    item, description_text = fetch_ml_listing(item_id, db)
+    item, description_text = fetch_ml_listing(payload.url or payload.source_id, db)
     return serialize_ml_listing(item, description_text)
 
 
@@ -2568,8 +2594,7 @@ def mercadolivre_copy_publish(
     user: models.User = Depends(require_user),
 ):
     require_ml_connection(db)
-    item_id = resolve_ml_item_id(payload.url or payload.source_id, db)
-    source, description_text = fetch_ml_listing(item_id, db)
+    source, description_text = fetch_ml_listing(payload.url or payload.source_id, db)
     clone_payload = build_ml_clone_payload(source, payload)
 
     if not clone_payload.get("category_id"):
