@@ -28,6 +28,7 @@ const marketColors = {
 export default function Dashboard() {
   const [products, setProducts] = useState([]);
   const [history, setHistory] = useState([]);
+  const [revenues, setRevenues] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -39,9 +40,11 @@ export default function Dashboard() {
       setIsLoading(true);
       const prod = await API.get("/products");
       const hist = await API.get("/pricing-history");
+      const rev = await API.get("/revenues");
 
       setProducts(prod.data || []);
       setHistory(hist.data || []);
+      setRevenues(rev.data || []);
     } catch (error) {
       logError(error);
     } finally {
@@ -150,6 +153,37 @@ export default function Dashboard() {
     })
   );
 
+  const realRevenueTotal = revenues.reduce(
+    (sum, item) => sum + Number(item.value || 0),
+    0
+  );
+
+  const channelData = (() => {
+    const map = {};
+
+    const ensure = (key) => {
+      const label = key || "Sem marketplace";
+      if (!map[label]) {
+        map[label] = { marketplace: label, produtos: 0, vendas: 0, valorVendas: 0 };
+      }
+      return map[label];
+    };
+
+    products.forEach((item) => {
+      ensure(item.marketplace).produtos += 1;
+    });
+
+    revenues.forEach((item) => {
+      const channel = ensure(item.marketplace);
+      channel.vendas += 1;
+      channel.valorVendas += Number(item.value || 0);
+    });
+
+    return Object.values(map).sort(
+      (a, b) => b.valorVendas - a.valorVendas || b.produtos - a.produtos
+    );
+  })();
+
   const monthlyData = [
     {
       month: "Jan",
@@ -197,6 +231,14 @@ export default function Dashboard() {
   ];
 
   const kpiCards = [
+    {
+      label: "Vendas reais (marketplaces)",
+      value: money(realRevenueTotal),
+      trend: revenues.length
+        ? `${revenues.length} pedidos sincronizados`
+        : "conecte um marketplace",
+      tone: "green",
+    },
     {
       label: "Faturamento projetado",
       value: money(dashboard.totalRevenue),
@@ -448,6 +490,36 @@ export default function Dashboard() {
                 </LineChart>
               </ResponsiveContainer>
             </div>
+          </section>
+
+          <section className="insight-card channels-card">
+            <div className="section-heading">
+              <div>
+                <span className="section-kicker">Canais integrados</span>
+                <h2>Produtos e vendas por marketplace</h2>
+              </div>
+              <span className="status-chip ok">Dados reais</span>
+            </div>
+
+            {channelData.length === 0 ? (
+              <p>
+                Conecte um marketplace e sincronize para ver produtos e vendas
+                reais aqui.
+              </p>
+            ) : (
+              <div className="channel-grid">
+                {channelData.map((channel) => (
+                  <article className="channel-item" key={channel.marketplace}>
+                    <strong>{channel.marketplace}</strong>
+                    <div className="channel-metrics">
+                      <span>{channel.produtos} produtos</span>
+                      <span>{channel.vendas} vendas</span>
+                      <em>{money(channel.valorVendas)}</em>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </section>
         </main>
 

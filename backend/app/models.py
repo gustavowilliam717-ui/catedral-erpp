@@ -20,6 +20,7 @@ class Product(Base):
     stock = Column(Integer, default=0)
     minimum_stock = Column(Integer, default=0)
     marketplace = Column(String, default="Shopee")
+    marketplace_status = Column(String, default="")
 
 
 class Expense(Base):

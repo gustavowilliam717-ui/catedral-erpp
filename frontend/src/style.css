@@ -8137,3 +8137,73 @@ button:hover {
     height: 30px;
   }
 }
+
+/* NEXT ERP - anuncios dinamicos por marketplace e canais reais */
+.marketplace-connect-hint {
+  width: 100%;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.marketplace-connect-hint:hover {
+  background: #eef2ff;
+  border-color: #6366f1;
+  color: #1e293b;
+}
+
+.marketplace-ad-counts {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.marketplace-ad-counts .ads-active {
+  color: #15803d;
+  font-weight: 600;
+}
+
+.marketplace-ad-counts .ads-paused {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.channels-card .channel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.channel-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #ffffff;
+}
+
+.channel-item strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #0f172a;
+}
+
+.channel-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.channel-metrics em {
+  font-style: normal;
+  font-weight: 700;
+  color: #15803d;
+}

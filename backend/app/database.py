@@ -50,6 +50,7 @@ PRODUCT_COLUMN_MIGRATIONS = {
     "barcode": "VARCHAR DEFAULT ''",
     "image_url": "VARCHAR DEFAULT ''",
     "minimum_stock": "INTEGER DEFAULT 0",
+    "marketplace_status": "VARCHAR DEFAULT ''",
 }
 
 

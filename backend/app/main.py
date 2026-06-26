@@ -1038,6 +1038,7 @@ def sync_ml_products(db: Session):
             price = parse_number(body.get("price"), 0)
             stock = int(parse_number(body.get("available_quantity"), 0))
             thumbnail = str(body.get("thumbnail") or "").replace("http://", "https://")
+            status = str(body.get("status") or "").strip().lower()
 
             existing = (
                 db.query(models.Product)
@@ -1052,6 +1053,7 @@ def sync_ml_products(db: Session):
                 existing.name = name
                 existing.sale_price = price
                 existing.stock = stock
+                existing.marketplace_status = status
 
                 if thumbnail:
                     existing.image_url = thumbnail
@@ -1069,6 +1071,7 @@ def sync_ml_products(db: Session):
                         image_url=thumbnail,
                         barcode=ml_id,
                         marketplace=ML_MARKETPLACE_LABEL,
+                        marketplace_status=status,
                         minimum_stock=0,
                     )
                 )
@@ -2198,6 +2201,57 @@ def mercadolivre_status(
     user: models.User = Depends(require_user),
 ):
     return serialize_ml_status(db)
+
+
+def count_marketplace_ads(db: Session, marketplace_label: str):
+    total = (
+        db.query(models.Product)
+        .filter(models.Product.marketplace == marketplace_label)
+        .count()
+    )
+    active = (
+        db.query(models.Product)
+        .filter(
+            models.Product.marketplace == marketplace_label,
+            models.Product.marketplace_status == "active",
+        )
+        .count()
+    )
+
+    return {"total_ads": total, "active_ads": active, "paused_ads": max(total - active, 0)}
+
+
+@app.get("/integrations/marketplaces")
+def list_connected_marketplaces(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    ml_credential = get_ml_credential(db)
+    ml_connected = bool(ml_credential and ml_credential.access_token)
+
+    marketplaces = []
+
+    ml_entry = {
+        "key": "mercado_livre",
+        "label": ML_MARKETPLACE_LABEL,
+        "connected": ml_connected,
+        "integration_page": "mercado-livre-integration",
+        "products_page": "products",
+        "total_ads": 0,
+        "active_ads": 0,
+        "paused_ads": 0,
+        "nickname": ml_credential.nickname if ml_credential else "",
+    }
+
+    if ml_connected:
+        ml_entry.update(count_marketplace_ads(db, ML_MARKETPLACE_LABEL))
+
+    marketplaces.append(ml_entry)
+
+    return {
+        "marketplaces": marketplaces,
+        "connected": [item for item in marketplaces if item["connected"]],
+    }
 
 
 @app.get("/integrations/mercadolivre/connect")

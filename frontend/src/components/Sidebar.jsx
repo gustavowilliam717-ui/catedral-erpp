@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { erpModules } from "../modules/erpModules";
+import API from "../services/api";
 
 const appShortcuts = [
   { page: "plans", label: "Planos", icon: "P" },
@@ -22,6 +23,23 @@ const accountMenuItems = [
 export default function Sidebar({ page, setPage, user, onLogout }) {
   const [appsOpen, setAppsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [liveMarketplaces, setLiveMarketplaces] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+
+    API.get("/integrations/marketplaces")
+      .then((response) => {
+        if (active) {
+          setLiveMarketplaces(response.data?.connected || []);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   function getFirstPage(module) {
     const firstColumn = module.columns?.[0];
@@ -119,41 +137,48 @@ export default function Sidebar({ page, setPage, user, onLogout }) {
 
                         {column.marketplaces && (
                           <div className="marketplace-ad-list">
-                            {column.marketplaces.map((marketplace) => (
-                              <div
-                                className="marketplace-ad-row"
-                                key={marketplace.key}
+                            {liveMarketplaces.length === 0 ? (
+                              <button
+                                type="button"
+                                className="marketplace-connect-hint"
+                                onClick={() =>
+                                  setPage("mercado-livre-integration")
+                                }
                               >
-                                <strong className={`marketplace-brand ${marketplace.key}`}>
-                                  {marketplace.label}
-                                </strong>
-                                <div>
-                                  {marketplace.actions.map((action) => (
-                                    <button
-                                      type="button"
-                                      key={action.page}
-                                      className={
-                                        page === action.page ? "selected" : ""
-                                      }
-                                      onClick={() => setPage(action.page)}
-                                    >
-                                      {action.label}
-                                    </button>
-                                  ))}
+                                Conecte um marketplace para ver os anuncios
+                                ativos e pausados aqui.
+                              </button>
+                            ) : (
+                              liveMarketplaces.map((marketplace) => (
+                                <div
+                                  className="marketplace-ad-row"
+                                  key={marketplace.key}
+                                >
+                                  <button
+                                    type="button"
+                                    className={`marketplace-brand ${marketplace.key}`}
+                                    onClick={() =>
+                                      setPage(
+                                        marketplace.products_page || "products"
+                                      )
+                                    }
+                                  >
+                                    {marketplace.label}
+                                    {marketplace.nickname
+                                      ? ` @${marketplace.nickname}`
+                                      : ""}
+                                  </button>
+                                  <div className="marketplace-ad-counts">
+                                    <span className="ads-active">
+                                      Ativos: {marketplace.active_ads || 0}
+                                    </span>
+                                    <span className="ads-paused">
+                                      Pausados: {marketplace.paused_ads || 0}
+                                    </span>
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {column.unauthorized && (
-                          <div className="not-authorized-block">
-                            <strong>Nao Autorizado</strong>
-                            <div>
-                              {column.unauthorized.map((marketplace) => (
-                                <span key={marketplace}>{marketplace}</span>
-                              ))}
-                            </div>
+                              ))
+                            )}
                           </div>
                         )}
                       </div>
