@@ -11,59 +11,6 @@ export const erpModules = [
     menuVariant: "product-menu",
     columns: [
       {
-        title: "Gerenciamento de Produtos",
-        items: [
-          { page: "products", label: "Produtos do Armazem", active: true },
-          { page: "product-mapping", label: "Gerenciar Mapeamento" },
-          { page: "product-categories", label: "Categorias" },
-        ],
-      },
-      {
-        title: "Gestao de Anuncios",
-        marketplaces: [
-          {
-            key: "shopee",
-            label: "Shopee",
-            actions: [
-              { page: "shopee-ad-drafts", label: "Rascunhos" },
-              { page: "shopee-active-ads", label: "Ativo" },
-              { page: "shopee-create-ad", label: "Criar Anuncio" },
-              { page: "shopee-ad-marketing", label: "Marketing" },
-            ],
-          },
-          {
-            key: "shein",
-            label: "SHEIN",
-            actions: [
-              { page: "shein-ad-drafts", label: "Rascunhos" },
-              { page: "shein-active-ads", label: "Ativo" },
-              { page: "shein-create-ad", label: "Criar Anuncio" },
-            ],
-          },
-          {
-            key: "tiktok",
-            label: "TikTok Shop",
-            actions: [
-              { page: "tiktok-ad-drafts", label: "Rascunhos" },
-              { page: "tiktok-active-ads", label: "Ativo" },
-              { page: "tiktok-create-ad", label: "Criar Anuncio" },
-              { page: "tiktok-ad-marketing", label: "Marketing" },
-            ],
-          },
-        ],
-        unauthorized: [
-          "Amazon",
-          "Shopify",
-          "Nuvemshop",
-          "Temu",
-          "Walmart",
-          "Falabella",
-          "Magalu",
-          "AliExpress",
-          "Kwai Shop",
-        ],
-      },
-      {
         title: "Ferramentas",
         items: [
           { page: "product-importer", label: "Importacao de Produto" },
