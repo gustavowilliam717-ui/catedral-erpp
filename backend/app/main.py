@@ -1169,16 +1169,50 @@ def sync_ml_orders(db: Session):
 ML_CLONE_SKIP_ATTRIBUTES = {"GTIN", "SELLER_SKU", "EAN"}
 
 
-def extract_ml_item_id(value: str):
-    match = re.search(r"MLB-?\d{5,}", (value or "").upper())
+def extract_ml_reference(value: str):
+    upper = (value or "").strip().upper()
+    match = re.search(r"MLB-?\d{5,}", upper)
 
     if not match:
         raise HTTPException(
             status_code=400,
-            detail="Link invalido. Cole o link de um anuncio do Mercado Livre (ex: https://produto.mercadolivre.com.br/MLB-...).",
+            detail="Link invalido. Cole o link de um anuncio do Mercado Livre.",
         )
 
-    return match.group(0).replace("-", "")
+    reference_id = match.group(0).replace("-", "")
+    # Links de catalogo tem o padrao /p/MLB...; sao produtos, nao anuncios.
+    is_product = bool(re.search(r"/P/MLB-?\d{5,}", upper))
+    return ("product" if is_product else "item"), reference_id
+
+
+def resolve_ml_item_id(value: str, db: Session):
+    kind, reference_id = extract_ml_reference(value)
+
+    if kind == "item":
+        return reference_id
+
+    # Link de catalogo: resolve para um anuncio real (vencedor do buy box).
+    product = ml_authenticated_get(f"/products/{reference_id}", db)
+    winner = product.get("buy_box_winner") or {}
+    item_id = winner.get("item_id")
+
+    if not item_id:
+        candidates = product.get("results") or product.get("children_ids") or []
+        if candidates:
+            first = candidates[0]
+            item_id = first if isinstance(first, str) else (first or {}).get("item_id")
+
+    if not item_id:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Esse link e de um produto de catalogo sem anuncio disponivel. "
+                "Abra o anuncio de um vendedor e copie o link que comeca com "
+                "produto.mercadolivre.com.br/MLB-..."
+            ),
+        )
+
+    return str(item_id)
 
 
 def fetch_ml_listing(item_id: str, db: Session):
@@ -2522,7 +2556,7 @@ def mercadolivre_copy_preview(
     user: models.User = Depends(require_user),
 ):
     require_ml_connection(db)
-    item_id = extract_ml_item_id(payload.url or payload.source_id)
+    item_id = resolve_ml_item_id(payload.url or payload.source_id, db)
     item, description_text = fetch_ml_listing(item_id, db)
     return serialize_ml_listing(item, description_text)
 
@@ -2534,7 +2568,7 @@ def mercadolivre_copy_publish(
     user: models.User = Depends(require_user),
 ):
     require_ml_connection(db)
-    item_id = extract_ml_item_id(payload.url or payload.source_id)
+    item_id = resolve_ml_item_id(payload.url or payload.source_id, db)
     source, description_text = fetch_ml_listing(item_id, db)
     clone_payload = build_ml_clone_payload(source, payload)
 
