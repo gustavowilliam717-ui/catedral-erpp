@@ -1,4 +1,4 @@
-# NEXTERP - Backend
+# NEXT ERP - Backend
 
 ## Rodar com SQLite
 

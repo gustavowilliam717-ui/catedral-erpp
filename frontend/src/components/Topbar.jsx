@@ -33,7 +33,7 @@ const pageTitles = {
   "orders-history": "Pedidos Historicos",
   "orders-canceled": "Anulado",
   stock: "Estoque",
-  chat: "Assistente NEXTERP",
+  chat: "Assistente NEXT ERP",
   plans: "Planos",
   "app-download": "Baixe o App",
   "product-importer": "Importacao de Produto",
@@ -74,7 +74,7 @@ const pageTitles = {
 
 export default function Topbar({ page }) {
   const modulePage = findModulePage(page);
-  const title = pageTitles[page] || modulePage?.label || "NEXTERP";
+  const title = pageTitles[page] || modulePage?.label || "NEXT ERP";
   const subtitle = modulePage
     ? `${modulePage.module} / ${modulePage.group}`
     : "Central de operacao para produtos, estoque e marketplaces.";

@@ -968,10 +968,10 @@ def serialize_ml_status(db: Session):
 
 
 def send_email_code(email: str, code: str, purpose: str):
-    subject = "Codigo de verificacao NEXTERP"
+    subject = "Codigo de verificacao NEXT ERP"
     body = "\n".join(
         [
-            "NEXTERP",
+            "NEXT ERP",
             "",
             f"Seu codigo para {purpose} e {code}.",
             "Ele expira em 10 minutos.",
@@ -1090,7 +1090,7 @@ def send_smtp_email(email: str, subject: str, body: str):
 
 
 def build_sms_body(code: str, purpose: str):
-    return f"NEXTERP: seu codigo para {purpose} e {code}. Expira em 10 minutos."
+    return f"NEXT ERP: seu codigo para {purpose} e {code}. Expira em 10 minutos."
 
 
 def send_twilio_sms_code(phone: str, code: str, purpose: str):
@@ -1457,7 +1457,7 @@ ensure_fiscal_invoice_columns()
 ensure_user_columns()
 ensure_verification_code_columns()
 
-app = FastAPI(title="NEXTERP")
+app = FastAPI(title="NEXT ERP")
 
 app.add_middleware(
     CORSMiddleware,
@@ -1474,7 +1474,12 @@ def home():
     if index_file.exists():
         return FileResponse(index_file)
 
-    return {"message": "NEXTERP rodando com sucesso"}
+    return {"message": "NEXT ERP rodando com sucesso"}
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "service": "NEXT ERP"}
 
 
 @app.get("/health/database")
@@ -1685,7 +1690,7 @@ def chat(request: ChatRequest, user: models.User = Depends(require_user)):
         completion = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Voce e um assistente inteligente da NEXTERP, ajudando com informacoes sobre estoque, marketplace, precificacao e processos de vendas."},
+                {"role": "system", "content": "Voce e um assistente inteligente da NEXT ERP, ajudando com informacoes sobre estoque, marketplace, precificacao e processos de vendas."},
                 {"role": "user", "content": request.message},
             ],
             max_tokens=500,

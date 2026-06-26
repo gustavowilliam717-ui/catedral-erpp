@@ -78,14 +78,8 @@ export default function Sidebar({ page, setPage, user, onLogout }) {
           className="app-logo"
           onClick={() => setPage("dashboard")}
         >
-          <span className="rocket-logo" aria-hidden="true">
-            <span className="rocket-trail" />
-            <span className="rocket-flame" />
-            <span className="rocket-ship">
-              <span className="rocket-window" />
-            </span>
-          </span>
-          <strong>NEXTERP</strong>
+          <img className="brand-mark" src="/catedral-erp-logo.png" alt="" />
+          <strong>NEXT ERP</strong>
         </button>
 
         <nav className="main-nav" aria-label="Navegacao principal">
@@ -229,7 +223,7 @@ export default function Sidebar({ page, setPage, user, onLogout }) {
             {accountOpen && (
               <div className="account-popover">
                 <div className="account-plan-card">
-                  <span>NEXTERP Pro</span>
+                  <span>NEXT ERP Pro</span>
                   <strong>12/07/2026</strong>
                   <button
                     type="button"

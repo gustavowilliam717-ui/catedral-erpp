@@ -31,12 +31,12 @@ const notificationRows = [
 ];
 
 const serviceRows = [
-  ["NEXTERP Pro X 1", "Comprar", "12/06/2026 ~ 12/07/2026", "31", "12/06/2026 12:54", "Ativo"],
+  ["NEXT ERP Pro X 1", "Comprar", "12/06/2026 ~ 12/07/2026", "31", "12/06/2026 12:54", "Ativo"],
 ];
 
 const transactionRows = [
-  ["UP2606121554380961049", "12/06/2026 12:54", "12/06/2026 12:55", "R$ 389,00", "NEXTERP Pro X 1", "PIX", "Sucesso"],
-  ["UP2605112219526821049", "11/05/2026 19:19", "11/05/2026 19:20", "R$ 389,00", "NEXTERP Pro X 1", "PIX", "Sucesso"],
+  ["UP2606121554380961049", "12/06/2026 12:54", "12/06/2026 12:55", "R$ 389,00", "NEXT ERP Pro X 1", "PIX", "Sucesso"],
+  ["UP2605112219526821049", "11/05/2026 19:19", "11/05/2026 19:20", "R$ 389,00", "NEXT ERP Pro X 1", "PIX", "Sucesso"],
   ["UP2602271336558781049", "27/02/2026 10:36", "27/02/2026 10:37", "R$ 270,00", "10000 Pacote Adicional de Pedidos X 1", "PIX", "Sucesso"],
   ["UP2601281441304341049", "28/01/2026 11:41", "28/01/2026 11:42", "R$ 45,00", "1000 Pacote Adicional de Pedidos X 1", "PIX", "Sucesso"],
 ];
@@ -267,7 +267,7 @@ function SubscriptionOverview() {
     <>
       <section className="settings-tool-card account-plan-summary">
         <div>
-          <span>NEXTERP Pro</span>
+          <span>NEXT ERP Pro</span>
           <strong>Quantidade de Pedidos</strong>
           <b>Ilimitado / Mes</b>
         </div>

@@ -3,7 +3,7 @@ export default function AppDownload() {
     <div className="page app-download-page">
       <section className="app-download-hero">
         <div>
-          <span className="section-kicker">NEXTERP Mobile</span>
+          <span className="section-kicker">NEXT ERP Mobile</span>
           <h1>Baixe o app para acompanhar sua operacao de marketplace</h1>
           <p>
             Acompanhe pedidos, mensagens, estoque, anuncios e alertas pelo
@@ -17,7 +17,7 @@ export default function AppDownload() {
 
         <div className="mobile-preview">
           <div className="phone-frame">
-            <span>NEXTERP</span>
+            <span>NEXT ERP</span>
             <strong>R$ 12.480</strong>
             <small>Venda potencial em estoque</small>
             <i />

@@ -427,7 +427,7 @@ function InventorySettings() {
               checked={settings.autoSyncStock}
               onChange={() => update("autoSyncStock")}
             >
-              Atualizar automaticamente o estoque da NEXTERP para o
+              Atualizar automaticamente o estoque da NEXT ERP para o
               marketplace conectado.
             </InventoryToggleRow>
           </div>

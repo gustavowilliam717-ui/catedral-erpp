@@ -1,42 +1,52 @@
-import React, { useEffect, useState } from "react";
+import React, { Suspense, lazy, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
 
-import AccountSettings from "./pages/AccountSettings";
-import Dashboard from "./pages/Dashboard";
-import Products from "./pages/Products";
-import Finance from "./pages/Finance";
-import FiscalSettings from "./pages/FiscalSettings";
-import Pricing from "./pages/Pricing";
-import Stock from "./pages/Stock";
-import AdvancedSettings from "./pages/AdvancedSettings";
-import Chat from "./pages/Chat";
-import AppDownload from "./pages/AppDownload";
-import DataSpace from "./pages/DataSpace";
-import ImportShopee from "./pages/ImportShopee";
 import Login from "./pages/Login";
-import MarketplaceFees from "./pages/MarketplaceFees";
-import MercadoLivreIntegration from "./pages/MercadoLivreIntegration";
-import ModulePlaceholder from "./pages/ModulePlaceholder";
-import OrderSettings from "./pages/OrderSettings";
-import Orders from "./pages/Orders";
-import Plans from "./pages/Plans";
-import PricingHistory from "./pages/PricingHistory";
-import PricingRules from "./pages/PricingRules";
-import ProductCategories from "./pages/ProductCategories";
-import ProductImporter from "./pages/ProductImporter";
-import ProductMapping from "./pages/ProductMapping";
-import SacReviews from "./pages/SacReviews";
-import Purchases from "./pages/Purchases";
-import ShippingSettings from "./pages/ShippingSettings";
-import ShopeeIntegration from "./pages/ShopeeIntegration";
-import StoreIntegrations from "./pages/StoreIntegrations";
 import API from "./services/api";
 import { logError } from "./utils/logger";
 
 import "./style.css";
+
+const AccountSettings = lazy(() => import("./pages/AccountSettings"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Products = lazy(() => import("./pages/Products"));
+const Finance = lazy(() => import("./pages/Finance"));
+const FiscalSettings = lazy(() => import("./pages/FiscalSettings"));
+const Pricing = lazy(() => import("./pages/Pricing"));
+const Stock = lazy(() => import("./pages/Stock"));
+const AdvancedSettings = lazy(() => import("./pages/AdvancedSettings"));
+const Chat = lazy(() => import("./pages/Chat"));
+const AppDownload = lazy(() => import("./pages/AppDownload"));
+const DataSpace = lazy(() => import("./pages/DataSpace"));
+const ImportShopee = lazy(() => import("./pages/ImportShopee"));
+const MarketplaceFees = lazy(() => import("./pages/MarketplaceFees"));
+const MercadoLivreIntegration = lazy(() => import("./pages/MercadoLivreIntegration"));
+const ModulePlaceholder = lazy(() => import("./pages/ModulePlaceholder"));
+const OrderSettings = lazy(() => import("./pages/OrderSettings"));
+const Orders = lazy(() => import("./pages/Orders"));
+const Plans = lazy(() => import("./pages/Plans"));
+const PricingHistory = lazy(() => import("./pages/PricingHistory"));
+const PricingRules = lazy(() => import("./pages/PricingRules"));
+const ProductCategories = lazy(() => import("./pages/ProductCategories"));
+const ProductImporter = lazy(() => import("./pages/ProductImporter"));
+const ProductMapping = lazy(() => import("./pages/ProductMapping"));
+const SacReviews = lazy(() => import("./pages/SacReviews"));
+const Purchases = lazy(() => import("./pages/Purchases"));
+const ShippingSettings = lazy(() => import("./pages/ShippingSettings"));
+const ShopeeIntegration = lazy(() => import("./pages/ShopeeIntegration"));
+const StoreIntegrations = lazy(() => import("./pages/StoreIntegrations"));
+
+function PageLoader() {
+  return (
+    <div className="page-loading" role="status" aria-live="polite">
+      <span />
+      <strong>Carregando modulo...</strong>
+    </div>
+  );
+}
 
 function App() {
   const [page, setPage] = useState("dashboard");
@@ -282,67 +292,69 @@ function App() {
       <main className="content">
         <Topbar page={page} />
 
-        {page === "dashboard" && <Dashboard />}
-        {page === "products" && (
-          <Products
-            setPage={setPage}
-            setPricingProductId={setPricingProductId}
-          />
-        )}
-        {page === "product-mapping" && <ProductMapping setPage={setPage} />}
-        {page === "product-categories" && (
-          <ProductCategories setPage={setPage} />
-        )}
-        {financePages.includes(page) && (
-          <Finance activePage={page} setPage={setPage} />
-        )}
-        {purchasePages.includes(page) && (
-          <Purchases activePage={page} setPage={setPage} />
-        )}
-        {orderPages.includes(page) && (
-          <Orders activePage={page} setPage={setPage} />
-        )}
-        {page === "pricing" && (
-          <Pricing
-            initialProductId={pricingProductId}
-            clearInitialProductId={() => setPricingProductId("")}
-          />
-        )}
-        {page === "pricing-history-view" && <PricingHistory />}
-        {page === "marketplace-fees" && <MarketplaceFees />}
-        {page === "pricing-rules" && <PricingRules setPage={setPage} />}
-        {stockPages.includes(page) && (
-          <Stock activePage={page} setPage={setPage} />
-        )}
-        {page === "chat" && <Chat />}
-        {page === "plans" && <Plans />}
-        {page === "app-download" && <AppDownload />}
-        {page === "product-importer" && <ProductImporter />}
-        {page === "data-space" && <DataSpace />}
-        {page === "importShopee" && <ImportShopee />}
-        {page === "store-integrations" && <StoreIntegrations />}
-        {page === "shopee-api" && <ShopeeIntegration />}
-        {page === "mercado-livre-integration" && <MercadoLivreIntegration />}
-        {accountPages.includes(page) && (
-          <AccountSettings activePage={page} setPage={setPage} user={user} />
-        )}
-        {sacPages.includes(page) && (
-          <SacReviews activePage={page} setPage={setPage} />
-        )}
-        {shippingSettingsPages.includes(page) && (
-          <ShippingSettings activePage={page} setPage={setPage} />
-        )}
-        {advancedSettingsPages.includes(page) && (
-          <AdvancedSettings activePage={page} setPage={setPage} />
-        )}
-        {page === "settings-nfe" && <FiscalSettings />}
-        {page.startsWith("settings-") &&
-          page !== "settings-nfe" &&
-          !shippingSettingsPages.includes(page) &&
-          !advancedSettingsPages.includes(page) && (
-          <OrderSettings activePage={page} setPage={setPage} />
-        )}
-        {!knownPages.includes(page) && <ModulePlaceholder page={page} />}
+        <Suspense fallback={<PageLoader />}>
+          {page === "dashboard" && <Dashboard />}
+          {page === "products" && (
+            <Products
+              setPage={setPage}
+              setPricingProductId={setPricingProductId}
+            />
+          )}
+          {page === "product-mapping" && <ProductMapping setPage={setPage} />}
+          {page === "product-categories" && (
+            <ProductCategories setPage={setPage} />
+          )}
+          {financePages.includes(page) && (
+            <Finance activePage={page} setPage={setPage} />
+          )}
+          {purchasePages.includes(page) && (
+            <Purchases activePage={page} setPage={setPage} />
+          )}
+          {orderPages.includes(page) && (
+            <Orders activePage={page} setPage={setPage} />
+          )}
+          {page === "pricing" && (
+            <Pricing
+              initialProductId={pricingProductId}
+              clearInitialProductId={() => setPricingProductId("")}
+            />
+          )}
+          {page === "pricing-history-view" && <PricingHistory />}
+          {page === "marketplace-fees" && <MarketplaceFees />}
+          {page === "pricing-rules" && <PricingRules setPage={setPage} />}
+          {stockPages.includes(page) && (
+            <Stock activePage={page} setPage={setPage} />
+          )}
+          {page === "chat" && <Chat />}
+          {page === "plans" && <Plans />}
+          {page === "app-download" && <AppDownload />}
+          {page === "product-importer" && <ProductImporter />}
+          {page === "data-space" && <DataSpace />}
+          {page === "importShopee" && <ImportShopee />}
+          {page === "store-integrations" && <StoreIntegrations />}
+          {page === "shopee-api" && <ShopeeIntegration />}
+          {page === "mercado-livre-integration" && <MercadoLivreIntegration />}
+          {accountPages.includes(page) && (
+            <AccountSettings activePage={page} setPage={setPage} user={user} />
+          )}
+          {sacPages.includes(page) && (
+            <SacReviews activePage={page} setPage={setPage} />
+          )}
+          {shippingSettingsPages.includes(page) && (
+            <ShippingSettings activePage={page} setPage={setPage} />
+          )}
+          {advancedSettingsPages.includes(page) && (
+            <AdvancedSettings activePage={page} setPage={setPage} />
+          )}
+          {page === "settings-nfe" && <FiscalSettings />}
+          {page.startsWith("settings-") &&
+            page !== "settings-nfe" &&
+            !shippingSettingsPages.includes(page) &&
+            !advancedSettingsPages.includes(page) && (
+            <OrderSettings activePage={page} setPage={setPage} />
+          )}
+          {!knownPages.includes(page) && <ModulePlaceholder page={page} />}
+        </Suspense>
       </main>
     </div>
   );

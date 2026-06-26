@@ -15,8 +15,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import API from "../services/api";
-import { logError } from "../utils/logger";
+import API from "../services/api";
+import { logError } from "../utils/logger";
 
 const marketColors = {
   Shopee: "#f97316",
@@ -283,7 +283,7 @@ export default function Dashboard() {
             <i />
             Operacao online
           </span>
-          <h1>Painel NEXTERP</h1>
+          <h1>Painel NEXT ERP</h1>
           <p>
             Visao executiva da operacao: margem, estoque, precificacao e alertas
             em um unico cockpit.

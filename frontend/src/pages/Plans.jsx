@@ -1,5 +1,5 @@
 const plan = {
-  name: "NEXTERP Pro",
+  name: "NEXT ERP Pro",
   price: "R$ 389,00",
   period: "BRL / Mensal",
   note: "Plano unico para vender em marketplaces com operacao profissional.",
@@ -20,7 +20,7 @@ export default function Plans() {
           <span className="section-kicker">Conta</span>
           <h1>Planos</h1>
           <p>
-            A NEXTERP trabalha com um plano unico para simplificar a
+            A NEXT ERP trabalha com um plano unico para simplificar a
             cobranca e liberar as principais ferramentas do sistema.
           </p>
         </div>

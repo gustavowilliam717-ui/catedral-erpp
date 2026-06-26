@@ -94,7 +94,7 @@ const reviews = [
     product: "Kit 2 Banquetas MDF",
     order: "MLB-77341209",
     buyer: "DecorOnline",
-    store: "Loja NEXTERP",
+    store: "Loja NEXT ERP",
     marketplace: "Mercado Livre",
     stars: 4,
     status: "answered",
@@ -108,7 +108,7 @@ const replyModels = [
     name: "Padrao Geral",
     grade: "Todas",
     content:
-      "Obrigado pela sua avaliacao. Sua opiniao ajuda a NEXTERP a melhorar o atendimento da loja.",
+      "Obrigado pela sua avaliacao. Sua opiniao ajuda a NEXT ERP a melhorar o atendimento da loja.",
     default: true,
   },
   {
