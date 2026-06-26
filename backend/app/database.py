@@ -58,6 +58,14 @@ USER_COLUMN_MIGRATIONS = {
 }
 
 
+REVENUE_COLUMN_MIGRATIONS = {
+    "marketplace": "VARCHAR DEFAULT ''",
+    "external_id": "VARCHAR DEFAULT ''",
+    "sku": "VARCHAR DEFAULT ''",
+    "created_at": "DATETIME",
+}
+
+
 VERIFICATION_CODE_COLUMN_MIGRATIONS = {
     "attempts": "INTEGER DEFAULT 0",
 }
@@ -111,6 +119,10 @@ def ensure_product_columns():
 
 def ensure_user_columns():
     _ensure_columns("users", USER_COLUMN_MIGRATIONS)
+
+
+def ensure_revenue_columns():
+    _ensure_columns("revenues", REVENUE_COLUMN_MIGRATIONS)
 
 
 def ensure_verification_code_columns():

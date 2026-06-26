@@ -36,6 +36,7 @@ from .database import (
     engine,
     ensure_product_columns,
     ensure_fiscal_invoice_columns,
+    ensure_revenue_columns,
     ensure_user_columns,
     ensure_verification_code_columns,
     get_db,
@@ -967,6 +968,187 @@ def serialize_ml_status(db: Session):
     }
 
 
+ML_MARKETPLACE_LABEL = "Mercado Livre"
+ML_SYNC_PAGE_LIMIT = 50
+ML_SYNC_MAX_OFFSET = 2000
+ML_MULTIGET_BATCH = 20
+
+
+def resolve_ml_seller_id(db: Session):
+    _, credential = get_valid_ml_access_token(db)
+    seller_id = (credential.external_user_id or "").strip()
+
+    if not seller_id:
+        me = ml_authenticated_get("/users/me", db)
+        seller_id = str(me.get("id") or "").strip()
+
+        if seller_id:
+            credential.external_user_id = seller_id
+            db.commit()
+
+    if not seller_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Nao foi possivel identificar o vendedor no Mercado Livre.",
+        )
+
+    return seller_id
+
+
+def sync_ml_products(db: Session):
+    seller_id = resolve_ml_seller_id(db)
+
+    item_ids = []
+    offset = 0
+
+    while True:
+        search = ml_authenticated_get(
+            f"/users/{seller_id}/items/search?limit={ML_SYNC_PAGE_LIMIT}&offset={offset}",
+            db,
+        )
+        results = search.get("results") or []
+        item_ids.extend(str(item_id) for item_id in results)
+
+        total = int((search.get("paging") or {}).get("total") or 0)
+        offset += ML_SYNC_PAGE_LIMIT
+
+        if not results or offset >= total or offset > ML_SYNC_MAX_OFFSET:
+            break
+
+    created = 0
+    updated = 0
+
+    for start in range(0, len(item_ids), ML_MULTIGET_BATCH):
+        chunk = item_ids[start : start + ML_MULTIGET_BATCH]
+        attributes = "id,title,price,available_quantity,seller_custom_field,thumbnail,status"
+        multiget = ml_authenticated_get(
+            "/items?ids=" + ",".join(chunk) + "&attributes=" + attributes,
+            db,
+        )
+
+        for entry in multiget if isinstance(multiget, list) else []:
+            body = entry.get("body") if isinstance(entry, dict) else None
+
+            if not body or not body.get("id"):
+                continue
+
+            ml_id = str(body.get("id"))
+            sku = str(body.get("seller_custom_field") or "").strip() or ml_id
+            name = str(body.get("title") or "").strip() or sku
+            price = parse_number(body.get("price"), 0)
+            stock = int(parse_number(body.get("available_quantity"), 0))
+            thumbnail = str(body.get("thumbnail") or "").replace("http://", "https://")
+
+            existing = (
+                db.query(models.Product)
+                .filter(
+                    models.Product.marketplace == ML_MARKETPLACE_LABEL,
+                    models.Product.sku == sku,
+                )
+                .first()
+            )
+
+            if existing:
+                existing.name = name
+                existing.sale_price = price
+                existing.stock = stock
+
+                if thumbnail:
+                    existing.image_url = thumbnail
+                if not existing.barcode:
+                    existing.barcode = ml_id
+
+                updated += 1
+            else:
+                db.add(
+                    models.Product(
+                        sku=sku,
+                        name=name,
+                        sale_price=price,
+                        stock=stock,
+                        image_url=thumbnail,
+                        barcode=ml_id,
+                        marketplace=ML_MARKETPLACE_LABEL,
+                        minimum_stock=0,
+                    )
+                )
+                created += 1
+
+    db.commit()
+
+    return {"items_found": len(item_ids), "created": created, "updated": updated}
+
+
+def sync_ml_orders(db: Session):
+    seller_id = resolve_ml_seller_id(db)
+
+    found = 0
+    created = 0
+    updated = 0
+    skipped = 0
+    offset = 0
+
+    while True:
+        data = ml_authenticated_get(
+            f"/orders/search?seller={seller_id}&sort=date_desc&limit={ML_SYNC_PAGE_LIMIT}&offset={offset}",
+            db,
+        )
+        results = data.get("results") or []
+        found += len(results)
+
+        for order in results:
+            order_id = str(order.get("id") or "").strip()
+            status = str(order.get("status") or "").strip().lower()
+
+            if not order_id or status in {"cancelled", "invalid"}:
+                skipped += 1
+                continue
+
+            external_id = f"ml:{order_id}"
+            total = parse_number(order.get("total_amount"), 0)
+            titles = ", ".join(
+                str((item.get("item") or {}).get("title") or "")
+                for item in (order.get("order_items") or [])
+            ).strip(", ")
+            description = f"Venda Mercado Livre #{order_id}"
+            if titles:
+                description = f"{description} - {titles}"
+            description = description[:240]
+
+            existing = (
+                db.query(models.Revenue)
+                .filter(models.Revenue.external_id == external_id)
+                .first()
+            )
+
+            if existing:
+                existing.value = total
+                existing.description = description
+                existing.marketplace = ML_MARKETPLACE_LABEL
+                updated += 1
+            else:
+                db.add(
+                    models.Revenue(
+                        description=description,
+                        value=total,
+                        category="Venda",
+                        marketplace=ML_MARKETPLACE_LABEL,
+                        external_id=external_id,
+                    )
+                )
+                created += 1
+
+        total_orders = int((data.get("paging") or {}).get("total") or 0)
+        offset += ML_SYNC_PAGE_LIMIT
+
+        if not results or offset >= total_orders or offset > ML_SYNC_MAX_OFFSET:
+            break
+
+    db.commit()
+
+    return {"orders_found": found, "created": created, "updated": updated, "skipped": skipped}
+
+
 def send_email_code(email: str, code: str, purpose: str):
     subject = "Codigo de verificacao NEXT ERP"
     body = "\n".join(
@@ -1456,6 +1638,7 @@ ensure_product_columns()
 ensure_fiscal_invoice_columns()
 ensure_user_columns()
 ensure_verification_code_columns()
+ensure_revenue_columns()
 
 app = FastAPI(title="NEXT ERP")
 
@@ -2079,6 +2262,39 @@ def mercadolivre_callback(
         return redirect_with("conectado")
     except HTTPException as exc:
         return redirect_with(f"erro:{urllib.parse.quote(str(exc.detail))}")
+
+
+@app.post("/integrations/mercadolivre/sync")
+def mercadolivre_sync(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    credential = get_ml_credential(db)
+
+    if not credential or not credential.access_token:
+        raise HTTPException(
+            status_code=400,
+            detail="Conecte a conta do Mercado Livre antes de sincronizar.",
+        )
+
+    products_result = sync_ml_products(db)
+
+    try:
+        orders_result = sync_ml_orders(db)
+    except HTTPException as exc:
+        orders_result = {
+            "orders_found": 0,
+            "created": 0,
+            "updated": 0,
+            "skipped": 0,
+            "error": str(exc.detail),
+        }
+
+    return {
+        "message": "Sincronizacao concluida",
+        "products": products_result,
+        "orders": orders_result,
+    }
 
 
 @app.post("/integrations/mercadolivre/disconnect")

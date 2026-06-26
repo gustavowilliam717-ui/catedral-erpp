@@ -38,10 +38,62 @@ export default function Products({ setPage, setPricingProductId }) {
   });
   const [bulkMessage, setBulkMessage] = useState("");
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [mlSyncing, setMlSyncing] = useState(false);
+  const [mlSyncMessage, setMlSyncMessage] = useState("");
+  const [mlConnected, setMlConnected] = useState(false);
 
   useEffect(() => {
     loadProducts();
+    autoSyncMercadoLivre();
   }, []);
+
+  async function autoSyncMercadoLivre() {
+    try {
+      const response = await API.get("/integrations/mercadolivre/status");
+
+      if (!response.data?.connected) {
+        setMlConnected(false);
+        return;
+      }
+
+      setMlConnected(true);
+      await runMercadoLivreSync(true);
+    } catch (error) {
+      logError(error);
+    }
+  }
+
+  async function runMercadoLivreSync(silent = false) {
+    try {
+      setMlSyncing(true);
+
+      if (!silent) {
+        setMlSyncMessage("Sincronizando com o Mercado Livre...");
+      }
+
+      const response = await API.post("/integrations/mercadolivre/sync");
+      const products = response.data?.products || {};
+      const orders = response.data?.orders || {};
+      const productCount = (products.created || 0) + (products.updated || 0);
+
+      setMlSyncMessage(
+        `Mercado Livre sincronizado: ${productCount} produtos (${products.created || 0} novos) e ${orders.created || 0} vendas novas.`
+      );
+
+      await loadProducts();
+    } catch (error) {
+      logError(error);
+
+      if (!silent) {
+        setMlSyncMessage(
+          error?.response?.data?.detail ||
+            "Nao foi possivel sincronizar com o Mercado Livre."
+        );
+      }
+    } finally {
+      setMlSyncing(false);
+    }
+  }
 
   async function loadProducts() {
     try {
@@ -294,6 +346,41 @@ export default function Products({ setPage, setPricingProductId }) {
   return (
     <div className="page products-page">
       <h1>Produtos</h1>
+
+      <div className="box import-panel">
+        <div>
+          <span className="section-kicker">Mercado Livre</span>
+          <h2>Sincronizacao automatica</h2>
+          <p>
+            Quando a conta do Mercado Livre esta conectada, os produtos, precos,
+            estoque e vendas sao atualizados automaticamente ao abrir esta tela.
+            Use o botao para forcar uma nova sincronizacao agora.
+          </p>
+        </div>
+
+        <div className="import-actions">
+          <button
+            type="button"
+            onClick={() => runMercadoLivreSync(false)}
+            disabled={mlSyncing}
+          >
+            {mlSyncing ? "Sincronizando..." : "Sincronizar Mercado Livre"}
+          </button>
+          {!mlConnected && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setPage("mercado-livre-integration")}
+            >
+              Conectar conta
+            </button>
+          )}
+        </div>
+
+        {mlSyncMessage && (
+          <strong className="import-result">{mlSyncMessage}</strong>
+        )}
+      </div>
 
       <div className="box import-panel">
         <div>

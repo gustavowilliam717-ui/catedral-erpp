@@ -38,6 +38,10 @@ class Revenue(Base):
     description = Column(String, default="")
     value = Column(Float, default=0)
     category = Column(String, default="Venda")
+    marketplace = Column(String, default="", index=True)
+    external_id = Column(String, default="", index=True)
+    sku = Column(String, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class PricingHistory(Base):
