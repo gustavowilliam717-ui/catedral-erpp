@@ -8207,3 +8207,95 @@ button:hover {
   font-weight: 700;
   color: #15803d;
 }
+
+/* NEXT ERP - Copiador de Anuncios */
+.importer-warning {
+  border-left: 4px solid #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.importer-preview-card .importer-preview-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 280px) 1fr;
+  gap: 20px;
+  margin-top: 12px;
+}
+
+.importer-preview-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  align-content: start;
+}
+
+.importer-preview-gallery img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.importer-preview-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.importer-preview-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.importer-preview-fields input {
+  padding: 9px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.importer-preview-inline {
+  display: flex;
+  gap: 12px;
+}
+
+.importer-preview-inline label {
+  flex: 1;
+}
+
+.importer-preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.importer-preview-description {
+  margin-top: 16px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 12px;
+}
+
+.importer-preview-description p {
+  white-space: pre-wrap;
+  font-size: 13px;
+  color: #475569;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.importer-success-card {
+  border-left: 4px solid #16a34a;
+  background: #f0fdf4;
+}
+
+@media (max-width: 720px) {
+  .importer-preview-card .importer-preview-grid {
+    grid-template-columns: 1fr;
+  }
+}

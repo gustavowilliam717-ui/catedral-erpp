@@ -309,6 +309,19 @@ class ProductBulkUpdate(BaseModel):
     supplier: str | None = None
 
 
+class CopyListingRequest(BaseModel):
+    url: str = ""
+    source_id: str = ""
+
+
+class PublishListingRequest(BaseModel):
+    url: str = ""
+    source_id: str = ""
+    title: str = ""
+    price: float | None = None
+    available_quantity: int | None = None
+
+
 XLSX_NS = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
@@ -1150,6 +1163,136 @@ def sync_ml_orders(db: Session):
     db.commit()
 
     return {"orders_found": found, "created": created, "updated": updated, "skipped": skipped}
+
+
+# Atributos que costumam gerar conflito ao clonar (ex: GTIN/SKU ja em uso).
+ML_CLONE_SKIP_ATTRIBUTES = {"GTIN", "SELLER_SKU", "EAN"}
+
+
+def extract_ml_item_id(value: str):
+    match = re.search(r"MLB-?\d{5,}", (value or "").upper())
+
+    if not match:
+        raise HTTPException(
+            status_code=400,
+            detail="Link invalido. Cole o link de um anuncio do Mercado Livre (ex: https://produto.mercadolivre.com.br/MLB-...).",
+        )
+
+    return match.group(0).replace("-", "")
+
+
+def fetch_ml_listing(item_id: str, db: Session):
+    item = ml_authenticated_get(f"/items/{item_id}", db)
+
+    description_text = ""
+    try:
+        description = ml_authenticated_get(f"/items/{item_id}/description", db)
+        description_text = str(description.get("plain_text") or description.get("text") or "")
+    except HTTPException:
+        description_text = ""
+
+    return item, description_text
+
+
+def serialize_ml_listing(item: dict, description_text: str):
+    pictures = [
+        str(picture.get("secure_url") or picture.get("url") or "")
+        for picture in (item.get("pictures") or [])
+        if picture.get("secure_url") or picture.get("url")
+    ]
+
+    return {
+        "source_id": item.get("id"),
+        "title": item.get("title"),
+        "price": item.get("price"),
+        "currency_id": item.get("currency_id"),
+        "available_quantity": item.get("available_quantity"),
+        "condition": item.get("condition"),
+        "category_id": item.get("category_id"),
+        "listing_type_id": item.get("listing_type_id"),
+        "permalink": item.get("permalink"),
+        "thumbnail": str(item.get("thumbnail") or "").replace("http://", "https://"),
+        "pictures": pictures,
+        "description": description_text,
+    }
+
+
+def build_ml_clone_payload(source: dict, payload: "PublishListingRequest"):
+    attributes = []
+    for attribute in source.get("attributes") or []:
+        attribute_id = attribute.get("id")
+
+        if not attribute_id or attribute_id in ML_CLONE_SKIP_ATTRIBUTES:
+            continue
+
+        if not (attribute.get("value_id") or attribute.get("value_name")):
+            continue
+
+        entry = {"id": attribute_id}
+        if attribute.get("value_id"):
+            entry["value_id"] = attribute["value_id"]
+        else:
+            entry["value_name"] = attribute["value_name"]
+        attributes.append(entry)
+
+    pictures = [
+        {"source": str(picture.get("secure_url") or picture.get("url") or "")}
+        for picture in (source.get("pictures") or [])
+        if picture.get("secure_url") or picture.get("url")
+    ]
+
+    clone = {
+        "title": (payload.title or source.get("title") or "").strip(),
+        "category_id": source.get("category_id"),
+        "price": payload.price if payload.price is not None else source.get("price"),
+        "currency_id": source.get("currency_id") or "BRL",
+        "available_quantity": (
+            payload.available_quantity
+            if payload.available_quantity is not None
+            else (source.get("available_quantity") or 1)
+        ),
+        "buying_mode": source.get("buying_mode") or "buy_it_now",
+        "condition": source.get("condition") or "new",
+        "listing_type_id": source.get("listing_type_id") or "bronze",
+    }
+
+    if pictures:
+        clone["pictures"] = pictures
+    if attributes:
+        clone["attributes"] = attributes
+
+    return clone
+
+
+def ml_create_item(clone_payload: dict, description_text: str, db: Session):
+    settings = get_ml_settings()
+    access_token, _ = get_valid_ml_access_token(db)
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+
+    created = ml_http_request(
+        "POST",
+        f"{settings['api_base']}/items",
+        data=json.dumps(clone_payload).encode("utf-8"),
+        headers=headers,
+    )
+
+    new_id = created.get("id")
+
+    if new_id and description_text:
+        try:
+            ml_http_request(
+                "POST",
+                f"{settings['api_base']}/items/{new_id}/description",
+                data=json.dumps({"plain_text": description_text}).encode("utf-8"),
+                headers=headers,
+            )
+        except HTTPException:
+            pass
+
+    return created
 
 
 def send_email_code(email: str, code: str, purpose: str):
@@ -2348,6 +2491,58 @@ def mercadolivre_sync(
         "message": "Sincronizacao concluida",
         "products": products_result,
         "orders": orders_result,
+    }
+
+
+def require_ml_connection(db: Session):
+    credential = get_ml_credential(db)
+
+    if not credential or not credential.access_token:
+        raise HTTPException(
+            status_code=400,
+            detail="Conecte a conta do Mercado Livre antes de copiar anuncios.",
+        )
+
+    return credential
+
+
+@app.post("/integrations/mercadolivre/copy/preview")
+def mercadolivre_copy_preview(
+    payload: CopyListingRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    require_ml_connection(db)
+    item_id = extract_ml_item_id(payload.url or payload.source_id)
+    item, description_text = fetch_ml_listing(item_id, db)
+    return serialize_ml_listing(item, description_text)
+
+
+@app.post("/integrations/mercadolivre/copy/publish")
+def mercadolivre_copy_publish(
+    payload: PublishListingRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    require_ml_connection(db)
+    item_id = extract_ml_item_id(payload.url or payload.source_id)
+    source, description_text = fetch_ml_listing(item_id, db)
+    clone_payload = build_ml_clone_payload(source, payload)
+
+    if not clone_payload.get("category_id"):
+        raise HTTPException(
+            status_code=400,
+            detail="Nao foi possivel identificar a categoria do anuncio de origem.",
+        )
+
+    created = ml_create_item(clone_payload, description_text, db)
+
+    return {
+        "message": "Anuncio publicado no Mercado Livre",
+        "id": created.get("id"),
+        "permalink": created.get("permalink"),
+        "status": created.get("status"),
+        "title": created.get("title"),
     }
 
 
