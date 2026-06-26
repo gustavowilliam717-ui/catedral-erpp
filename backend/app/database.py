@@ -62,7 +62,7 @@ REVENUE_COLUMN_MIGRATIONS = {
     "marketplace": "VARCHAR DEFAULT ''",
     "external_id": "VARCHAR DEFAULT ''",
     "sku": "VARCHAR DEFAULT ''",
-    "created_at": "DATETIME",
+    "created_at": "TIMESTAMP",
 }
 
 
@@ -87,7 +87,7 @@ FISCAL_INVOICE_COLUMN_MIGRATIONS = {
     "response_payload": "TEXT DEFAULT ''",
     "pdf_url": "VARCHAR DEFAULT ''",
     "xml_url": "VARCHAR DEFAULT ''",
-    "updated_at": "DATETIME",
+    "updated_at": "TIMESTAMP",
 }
 
 
@@ -99,18 +99,24 @@ def _ensure_columns(table_name: str, migrations: dict):
 
     existing = {column["name"] for column in inspector.get_columns(table_name)}
 
-    with engine.begin() as connection:
-        for column_name, column_type in migrations.items():
-            if column_name in existing:
-                continue
+    for column_name, column_type in migrations.items():
+        if column_name in existing:
+            continue
 
-            try:
+        # Cada coluna roda na propria transacao para que uma falha isolada
+        # nao impeca as demais migracoes nem derrube a inicializacao do app.
+        try:
+            with engine.begin() as connection:
                 connection.execute(
                     text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
                 )
-            except OperationalError as exc:
-                if "duplicate column" not in str(exc).lower():
-                    raise
+        except Exception as exc:
+            if "duplicate column" in str(exc).lower() or "already exists" in str(exc).lower():
+                continue
+
+            print(
+                f"[migracao] Aviso: nao foi possivel adicionar {table_name}.{column_name}: {exc}"
+            )
 
 
 def ensure_product_columns():
