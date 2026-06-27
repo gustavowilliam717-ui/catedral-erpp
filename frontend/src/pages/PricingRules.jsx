@@ -57,15 +57,13 @@ export default function PricingRules({ setPage }) {
       setIsSaving(true);
       setMessage("");
 
-      await Promise.all(
-        Object.entries(rules).map(([key, value]) =>
-          API.post("/settings", {
-            key,
-            value: String(value),
-            group: "pricing",
-          })
-        )
-      );
+      await API.post("/settings/bulk", {
+        settings: Object.entries(rules).map(([key, value]) => ({
+          key,
+          value: String(value),
+          group: "pricing",
+        })),
+      });
 
       setMessage("Regras salvas. A calculadora usara estes padroes ao abrir.");
     } catch (error) {

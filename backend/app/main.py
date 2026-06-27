@@ -212,6 +212,7 @@ class SetupRequest(BaseModel):
     password: str
     verification_channel: str = "email"
     phone: str = ""
+    remember: bool = True
 
 
 class LoginRequest(BaseModel):
@@ -219,6 +220,7 @@ class LoginRequest(BaseModel):
     password: str
     verification_channel: str = "email"
     phone: str = ""
+    remember: bool = True
 
 
 class VerifyLoginRequest(BaseModel):
@@ -241,6 +243,7 @@ class RegisterRequest(BaseModel):
     email_code: str = ""
     sms_code: str = ""
     accepted_terms: bool
+    remember: bool = True
 
 
 class StoreIntegrationCreate(BaseModel):
@@ -261,6 +264,25 @@ class SettingUpdate(BaseModel):
     key: str
     value: str
     group: str = "general"
+
+
+class SettingsBulkUpdate(BaseModel):
+    settings: list[SettingUpdate]
+
+
+class ShopeeConfigUpdate(BaseModel):
+    partner_id: str = ""
+    partner_key: str = ""
+    shop_id: str = ""
+    shop_name: str = ""
+    environment: str = "production"
+    redirect_url: str = ""
+    frontend_return_url: str = ""
+    auth_url: str = ""
+    token_url: str = ""
+    refresh_url: str = ""
+    shop_info_url: str = ""
+    api_base: str = ""
 
 
 class FiscalConfigUpdate(BaseModel):
@@ -312,11 +334,14 @@ class ProductBulkUpdate(BaseModel):
 class CopyListingRequest(BaseModel):
     url: str = ""
     source_id: str = ""
+    source_platform: str = "mercado_livre"
 
 
 class PublishListingRequest(BaseModel):
     url: str = ""
     source_id: str = ""
+    source_platform: str = "mercado_livre"
+    target_platform: str = "mercado_livre"
     title: str = ""
     price: float | None = None
     available_quantity: int | None = None
@@ -464,12 +489,12 @@ def verify_password(password: str, stored_hash: str) -> bool:
     return hmac.compare_digest(candidate, digest)
 
 
-def create_auth_session(user_id: int, db: Session):
+def create_auth_session(user_id: int, db: Session, session_days: int = 7):
     token = secrets.token_urlsafe(48)
     session = models.AuthSession(
         token=token,
         user_id=user_id,
-        expires_at=datetime.utcnow() + timedelta(days=7),
+        expires_at=datetime.utcnow() + timedelta(days=max(session_days, 1)),
     )
     db.add(session)
     db.commit()
@@ -823,7 +848,14 @@ def require_ml_settings():
     return settings
 
 
-def ml_http_request(method: str, url: str, *, data: bytes | None = None, headers: dict | None = None):
+def http_json_request(
+    method: str,
+    url: str,
+    *,
+    data: bytes | None = None,
+    headers: dict | None = None,
+    error_prefix: str = "Falha na API",
+):
     request = urllib.request.Request(url, data=data, method=method)
     request.add_header("Accept", "application/json")
 
@@ -836,11 +868,15 @@ def ml_http_request(method: str, url: str, *, data: bytes | None = None, headers
             return json.loads(raw) if raw else {}
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="ignore") or str(exc)
-        raise HTTPException(status_code=exc.code, detail=f"Falha Mercado Livre: {detail}")
+        raise HTTPException(status_code=exc.code, detail=f"{error_prefix}: {detail}")
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Falha Mercado Livre: {exc}")
+        raise HTTPException(status_code=502, detail=f"{error_prefix}: {exc}")
+
+
+def ml_http_request(method: str, url: str, *, data: bytes | None = None, headers: dict | None = None):
+    return http_json_request(method, url, data=data, headers=headers, error_prefix="Falha Mercado Livre")
 
 
 def ml_token_request(payload: dict):
@@ -979,6 +1015,499 @@ def serialize_ml_status(db: Session):
         "expires_at": credential.expires_at.isoformat() if credential and credential.expires_at else None,
         "updated_at": credential.updated_at.isoformat() if credential and credential.updated_at else None,
     }
+
+
+SHOPEE_PROVIDER = "shopee"
+SHOPEE_OAUTH_STATE_GROUP = "shopee_oauth"
+SHOPEE_CONFIG_SETTING_KEY = "shopee_config"
+
+
+def get_shopee_defaults():
+    return {
+        "partner_id": os.getenv("SHOPEE_PARTNER_ID", "").strip(),
+        "partner_key": os.getenv("SHOPEE_PARTNER_KEY", "").strip(),
+        "shop_id": os.getenv("SHOPEE_SHOP_ID", "").strip(),
+        "shop_name": "",
+        "environment": os.getenv("SHOPEE_ENVIRONMENT", "production").strip().lower(),
+        "redirect_url": os.getenv("SHOPEE_REDIRECT_URI", "http://127.0.0.1:8000/shopee/callback").strip(),
+        "frontend_return_url": os.getenv("SHOPEE_FRONTEND_RETURN_URL", "/").strip() or "/",
+        "auth_url": os.getenv(
+            "SHOPEE_AUTH_URL",
+            "https://partner.shopeemobile.com/api/v2/shop/auth_partner",
+        ).strip(),
+        "token_url": os.getenv(
+            "SHOPEE_TOKEN_URL",
+            "https://partner.shopeemobile.com/api/v2/auth/token/get",
+        ).strip(),
+        "refresh_url": os.getenv(
+            "SHOPEE_REFRESH_URL",
+            "https://partner.shopeemobile.com/api/v2/auth/access_token/get",
+        ).strip(),
+        "shop_info_url": os.getenv(
+            "SHOPEE_SHOP_INFO_URL",
+            "https://partner.shopeemobile.com/api/v2/shop/get_shop_info",
+        ).strip(),
+        "api_base": os.getenv("SHOPEE_API_BASE", "https://partner.shopeemobile.com").strip().rstrip("/"),
+    }
+
+
+def normalize_shopee_environment(value: str):
+    normalized = (value or "production").lower().strip()
+
+    if normalized in {"sandbox", "homologacao", "homologation", "test"}:
+        return "sandbox"
+
+    return "production"
+
+
+def get_shopee_config(db: Session):
+    config = get_shopee_defaults()
+    stored = get_setting_value(db, SHOPEE_CONFIG_SETTING_KEY, "", group="shopee").strip()
+
+    if stored:
+        try:
+            config.update(json.loads(stored))
+        except (TypeError, ValueError):
+            pass
+
+    config["partner_id"] = str(config.get("partner_id") or "").strip()
+    config["partner_key"] = str(config.get("partner_key") or "").strip()
+    config["shop_id"] = str(config.get("shop_id") or "").strip()
+    config["shop_name"] = str(config.get("shop_name") or "").strip()
+    config["environment"] = normalize_shopee_environment(config.get("environment"))
+    config["redirect_url"] = str(config.get("redirect_url") or "").strip() or get_shopee_defaults()["redirect_url"]
+    config["frontend_return_url"] = str(config.get("frontend_return_url") or "").strip() or "/"
+    config["auth_url"] = str(config.get("auth_url") or "").strip() or get_shopee_defaults()["auth_url"]
+    config["token_url"] = str(config.get("token_url") or "").strip() or get_shopee_defaults()["token_url"]
+    config["refresh_url"] = str(config.get("refresh_url") or "").strip() or get_shopee_defaults()["refresh_url"]
+    config["shop_info_url"] = str(config.get("shop_info_url") or "").strip() or get_shopee_defaults()["shop_info_url"]
+    config["api_base"] = str(config.get("api_base") or "").strip().rstrip("/") or get_shopee_defaults()["api_base"]
+
+    return config
+
+
+def update_shopee_config(db: Session, payload: ShopeeConfigUpdate):
+    current = get_shopee_config(db)
+    updates = payload.model_dump()
+
+    for key, value in updates.items():
+        if isinstance(value, str):
+            cleaned = value.strip()
+
+            if cleaned:
+                current[key] = cleaned
+        elif value is not None:
+            current[key] = value
+
+    current["environment"] = normalize_shopee_environment(current.get("environment"))
+    upsert_setting_value(
+        db,
+        SHOPEE_CONFIG_SETTING_KEY,
+        json.dumps(current, ensure_ascii=False),
+        group="shopee",
+    )
+    db.commit()
+    return current
+
+
+def require_shopee_config(db: Session):
+    config = get_shopee_config(db)
+    missing = [
+        name
+        for name, key in (
+            ("SHOPEE_PARTNER_ID", "partner_id"),
+            ("SHOPEE_PARTNER_KEY", "partner_key"),
+            ("SHOPEE_REDIRECT_URI", "redirect_url"),
+        )
+        if not config[key]
+    ]
+
+    if missing:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Shopee nao configurada. Defina "
+                + ", ".join(missing)
+                + " na tela de integracao ou em backend/.env."
+            ),
+        )
+
+    return config
+
+
+def build_shopee_signature(partner_id: str, partner_key: str, path: str, timestamp: str, access_token: str = "", shop_id: str = ""):
+    message = f"{partner_id}{path}{timestamp}{access_token}{shop_id}"
+    return hmac.new(
+        partner_key.encode("utf-8"),
+        message.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def resolve_shopee_url(url_or_path: str, config: dict):
+    if url_or_path.startswith("http://") or url_or_path.startswith("https://"):
+        return url_or_path
+
+    return f"{config['api_base'].rstrip('/')}/{url_or_path.lstrip('/')}"
+
+
+def append_url_params(url: str, params: dict):
+    parsed = urllib.parse.urlparse(url)
+    query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+
+    for key, value in params.items():
+        if value not in (None, ""):
+            query[key] = value
+
+    return urllib.parse.urlunparse(parsed._replace(query=urllib.parse.urlencode(query, doseq=True)))
+
+
+def shopee_numeric_value(value: str):
+    text = str(value or "").strip()
+    return int(text) if text.isdigit() else text
+
+
+def shopee_request(
+    method: str,
+    url_or_path: str,
+    db: Session,
+    *,
+    params: dict | None = None,
+    body: dict | None = None,
+    access_token: str = "",
+    shop_id: str = "",
+):
+    config = require_shopee_config(db)
+    url = resolve_shopee_url(url_or_path, config)
+    parsed = urllib.parse.urlparse(url)
+    path = parsed.path or "/"
+    timestamp = str(int(datetime.utcnow().timestamp()))
+    sign = build_shopee_signature(
+        config["partner_id"],
+        config["partner_key"],
+        path,
+        timestamp,
+        access_token=access_token,
+        shop_id=shop_id,
+    )
+    query = {
+        "partner_id": config["partner_id"],
+        "timestamp": timestamp,
+        "sign": sign,
+    }
+
+    if access_token:
+        query["access_token"] = access_token
+
+    if shop_id:
+        query["shop_id"] = shop_id
+
+    for key, value in (params or {}).items():
+        if value not in (None, ""):
+            query[key] = value
+
+    final_url = urllib.parse.urlunparse(
+        parsed._replace(query=urllib.parse.urlencode(query, doseq=True))
+    )
+    payload = None
+    headers = None
+
+    if body is not None:
+        payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+
+    data = http_json_request(
+        method,
+        final_url,
+        data=payload,
+        headers=headers,
+        error_prefix="Falha Shopee",
+    )
+
+    if isinstance(data, dict):
+        error = str(data.get("error") or "").strip()
+
+        if error:
+            message = data.get("message") or data.get("msg") or error
+            request_id = data.get("request_id")
+            detail = f"Falha Shopee: {message}"
+
+            if request_id:
+                detail = f"{detail} (request_id: {request_id})"
+
+            raise HTTPException(status_code=502, detail=detail)
+
+        if "response" in data:
+            return data["response"]
+
+    return data
+
+
+def get_shopee_credential(db: Session):
+    return (
+        db.query(models.MarketplaceCredential)
+        .filter(models.MarketplaceCredential.provider == SHOPEE_PROVIDER)
+        .first()
+    )
+
+
+def create_shopee_oauth_state(user_id: int, db: Session):
+    state = secrets.token_urlsafe(32)
+    expires_at = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
+    upsert_setting_value(
+        db,
+        f"state:{state}",
+        json.dumps({"user_id": user_id, "expires_at": expires_at}),
+        group=SHOPEE_OAUTH_STATE_GROUP,
+    )
+    db.commit()
+    return state
+
+
+def consume_shopee_oauth_state(state: str, db: Session):
+    if not state:
+        raise HTTPException(status_code=400, detail="Parametro state ausente no retorno da Shopee")
+
+    setting = (
+        db.query(models.Setting)
+        .filter(
+            models.Setting.group == SHOPEE_OAUTH_STATE_GROUP,
+            models.Setting.key == f"state:{state}",
+        )
+        .first()
+    )
+
+    if not setting:
+        raise HTTPException(status_code=400, detail="Autorizacao da Shopee invalida ou expirada.")
+
+    try:
+        data = json.loads(setting.value or "{}")
+        expires_at = datetime.fromisoformat(data.get("expires_at"))
+    except (ValueError, TypeError):
+        expires_at = datetime.utcnow() - timedelta(seconds=1)
+        data = {}
+
+    db.delete(setting)
+    db.commit()
+
+    if expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Autorizacao da Shopee expirada. Tente novamente.")
+
+    return data
+
+
+def save_shopee_credential(token_payload: dict, db: Session):
+    expires_in = int(
+        token_payload.get("expire_in")
+        or token_payload.get("expires_in")
+        or token_payload.get("access_token_expire_in")
+        or 0
+    )
+    credential = get_shopee_credential(db)
+
+    if not credential:
+        credential = models.MarketplaceCredential(provider=SHOPEE_PROVIDER)
+        db.add(credential)
+
+    credential.external_user_id = str(
+        token_payload.get("shop_id")
+        or token_payload.get("merchant_id")
+        or credential.external_user_id
+        or ""
+    )
+    credential.nickname = str(
+        token_payload.get("shop_name")
+        or token_payload.get("merchant_name")
+        or token_payload.get("nickname")
+        or credential.nickname
+        or ""
+    )
+    credential.access_token = str(token_payload.get("access_token") or "")
+    credential.refresh_token = str(token_payload.get("refresh_token") or credential.refresh_token or "")
+    credential.token_type = str(token_payload.get("token_type") or "bearer")
+    credential.scope = str(token_payload.get("scope") or "")
+    credential.expires_at = datetime.utcnow() + timedelta(seconds=expires_in) if expires_in else None
+    credential.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(credential)
+    return credential
+
+
+def refresh_shopee_token(credential: models.MarketplaceCredential, db: Session):
+    config = require_shopee_config(db)
+
+    if not credential.refresh_token:
+        raise HTTPException(status_code=401, detail="Shopee desconectada. Conecte a conta novamente.")
+
+    target_shop_id = str(credential.external_user_id or config["shop_id"]).strip()
+    body = {
+        "partner_id": shopee_numeric_value(config["partner_id"]),
+        "refresh_token": credential.refresh_token,
+    }
+
+    if target_shop_id:
+        body["shop_id"] = shopee_numeric_value(target_shop_id)
+
+    token_payload = shopee_request(
+        "POST",
+        config["refresh_url"],
+        db,
+        body=body,
+    )
+    return save_shopee_credential(token_payload, db)
+
+
+def get_valid_shopee_access_token(db: Session):
+    credential = get_shopee_credential(db)
+
+    if not credential or not credential.access_token:
+        raise HTTPException(status_code=401, detail="Shopee nao conectada. Conecte a conta primeiro.")
+
+    if credential.expires_at and credential.expires_at <= datetime.utcnow() + timedelta(minutes=5):
+        credential = refresh_shopee_token(credential, db)
+
+    return credential.access_token, credential
+
+
+def serialize_shopee_status(db: Session):
+    config = get_shopee_config(db)
+    credential = get_shopee_credential(db)
+    token_expired = bool(
+        credential
+        and credential.expires_at
+        and credential.expires_at <= datetime.utcnow()
+    )
+
+    return {
+        "configured": bool(
+            config["partner_id"]
+            and config["partner_key"]
+            and config["redirect_url"]
+        ),
+        "connected": bool(credential and credential.access_token),
+        "token_expired": token_expired,
+        "partner_id": config["partner_id"],
+        "partner_id_present": bool(config["partner_id"]),
+        "partner_key_configured": bool(config["partner_key"]),
+        "shop_id": config["shop_id"],
+        "shop_name": (credential.nickname if credential and credential.nickname else config["shop_name"]),
+        "external_user_id": credential.external_user_id if credential else "",
+        "environment": config["environment"],
+        "redirect_url": config["redirect_url"],
+        "frontend_return_url": config["frontend_return_url"],
+        "auth_url": config["auth_url"],
+        "token_url": config["token_url"],
+        "refresh_url": config["refresh_url"],
+        "shop_info_url": config["shop_info_url"],
+        "api_base": config["api_base"],
+        "expires_at": credential.expires_at.isoformat() if credential and credential.expires_at else None,
+        "updated_at": credential.updated_at.isoformat() if credential and credential.updated_at else None,
+    }
+
+
+def build_shopee_authorization_url(config: dict, state: str):
+    auth_url = config["auth_url"]
+    timestamp = str(int(datetime.utcnow().timestamp()))
+    parsed = urllib.parse.urlparse(auth_url)
+    path = parsed.path or "/"
+    sign = build_shopee_signature(config["partner_id"], config["partner_key"], path, timestamp)
+    redirect_url = append_url_params(config["redirect_url"], {"state": state})
+    query = {
+        "partner_id": config["partner_id"],
+        "timestamp": timestamp,
+        "sign": sign,
+        "redirect": redirect_url,
+    }
+    existing_query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+    existing_query.update(query)
+    return urllib.parse.urlunparse(parsed._replace(query=urllib.parse.urlencode(existing_query, doseq=True)))
+
+
+def shopee_token_request(code: str, shop_id: str, db: Session):
+    config = require_shopee_config(db)
+    target_shop_id = str(shop_id or config["shop_id"]).strip()
+
+    if not target_shop_id:
+        raise HTTPException(status_code=400, detail="Informe o Shop ID da Shopee")
+
+    body = {
+        "partner_id": shopee_numeric_value(config["partner_id"]),
+        "code": code,
+    }
+
+    if target_shop_id:
+        body["shop_id"] = shopee_numeric_value(target_shop_id)
+
+    return shopee_request(
+        "POST",
+        config["token_url"],
+        db,
+        body=body,
+    )
+
+
+def shopee_shop_info_request(db: Session):
+    config = get_shopee_config(db)
+    access_token, credential = get_valid_shopee_access_token(db)
+    return shopee_request(
+        "GET",
+        config["shop_info_url"],
+        db,
+        access_token=access_token,
+        shop_id=credential.external_user_id or config["shop_id"],
+    )
+
+
+def sync_shopee_store_integration(db: Session, credential: models.MarketplaceCredential, shop_info: dict | None = None):
+    shop_info = shop_info or {}
+    shop_id = str(
+        shop_info.get("shop_id")
+        or shop_info.get("merchant_id")
+        or credential.external_user_id
+        or ""
+    ).strip()
+    store_name = str(
+        shop_info.get("shop_name")
+        or shop_info.get("nickname")
+        or shop_info.get("name")
+        or credential.nickname
+        or "Loja Shopee"
+    ).strip()
+    country = str(shop_info.get("region") or shop_info.get("country") or "BR").strip() or "BR"
+    query = db.query(models.StoreIntegration).filter(models.StoreIntegration.marketplace == "Shopee")
+
+    if shop_id:
+        integration = query.filter(models.StoreIntegration.shop_id == shop_id).first()
+    else:
+        integration = query.filter(models.StoreIntegration.shop_id == "").first()
+
+    if not integration:
+        integration = models.StoreIntegration(marketplace="Shopee")
+        db.add(integration)
+
+    integration.store_name = store_name
+    integration.country = country
+    integration.shop_id = shop_id
+    integration.status = "Ativo"
+    integration.auth_date = datetime.utcnow().strftime("%d/%m/%Y %H:%M")
+    integration.notes = "Autorizada pela Shopee Open Platform"
+    db.commit()
+    db.refresh(integration)
+    return integration
+
+
+def mark_shopee_store_integrations_disconnected(db: Session):
+    integrations = (
+        db.query(models.StoreIntegration)
+        .filter(models.StoreIntegration.marketplace == "Shopee")
+        .all()
+    )
+
+    for integration in integrations:
+        integration.status = "Expirado"
+        integration.notes = "Conta Shopee desconectada"
+
+    db.commit()
 
 
 ML_MARKETPLACE_LABEL = "Mercado Livre"
@@ -1605,6 +2134,7 @@ def send_code_by_channel(channel: str, target: str, code: str, purpose: str):
 def create_verification_challenge(user: models.User, payload, db: Session):
     channel = normalize_verification_channel(payload.verification_channel)
     target = user.email
+    session_days = 14 if getattr(payload, "remember", True) else 7
 
     if channel == "phone":
         target = normalize_phone(payload.phone)
@@ -1628,6 +2158,7 @@ def create_verification_challenge(user: models.User, payload, db: Session):
             phone=target if channel == "phone" else "",
             channel=channel,
             code_hash=hash_verification_code(code),
+            session_days=session_days,
             expires_at=datetime.utcnow() + timedelta(minutes=10),
         )
     )
@@ -1804,8 +2335,9 @@ def finish_verified_login(challenge_id: str, code: str, db: Session):
     if not user:
         raise HTTPException(status_code=401, detail="Usuario inativo")
 
+    session_days = challenge.session_days or 7
     db.delete(challenge)
-    token = create_auth_session(user.id, db)
+    token = create_auth_session(user.id, db, session_days)
 
     return {
         "token": token,
@@ -1996,7 +2528,7 @@ def auth_register(payload: RegisterRequest, db: Session = Depends(get_db)):
     ).delete(synchronize_session=False)
     db.commit()
 
-    token = create_auth_session(user.id, db)
+    token = create_auth_session(user.id, db, 14 if payload.remember else 7)
 
     return {
         "token": token,
@@ -2257,6 +2789,38 @@ def upsert_setting(
     return setting
 
 
+@app.post("/settings/bulk")
+def upsert_settings_bulk(
+    payload: SettingsBulkUpdate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    if not payload.settings:
+        raise HTTPException(status_code=400, detail="Nenhuma configuracao informada")
+
+    seen_keys = set()
+
+    for item in payload.settings:
+        if item.key in seen_keys:
+            raise HTTPException(status_code=400, detail=f"Configuracao repetida: {item.key}")
+        seen_keys.add(item.key)
+
+        setting = db.query(models.Setting).filter(models.Setting.key == item.key).first()
+
+        if setting:
+            setting.value = item.value
+            setting.group = item.group
+            setting.updated_at = datetime.utcnow()
+        else:
+            db.add(models.Setting(**item.model_dump()))
+
+    db.commit()
+    return {
+        "message": "Configuracoes salvas",
+        "updated": len(payload.settings),
+    }
+
+
 @app.get("/fiscal/config")
 def fiscal_config(
     db: Session = Depends(get_db),
@@ -2461,6 +3025,25 @@ def list_connected_marketplaces(
 
     marketplaces.append(ml_entry)
 
+    shopee_credential = get_shopee_credential(db)
+    shopee_connected = bool(shopee_credential and shopee_credential.access_token)
+    shopee_entry = {
+        "key": "shopee",
+        "label": "Shopee",
+        "connected": shopee_connected,
+        "integration_page": "store-integrations",
+        "products_page": "products",
+        "total_ads": 0,
+        "active_ads": 0,
+        "paused_ads": 0,
+        "nickname": shopee_credential.nickname if shopee_credential else "",
+    }
+
+    if shopee_connected:
+        shopee_entry.update(count_marketplace_ads(db, "Shopee"))
+
+    marketplaces.append(shopee_entry)
+
     return {
         "marketplaces": marketplaces,
         "connected": [item for item in marketplaces if item["connected"]],
@@ -2576,23 +3159,72 @@ def require_ml_connection(db: Session):
     return credential
 
 
-@app.post("/integrations/mercadolivre/copy/preview")
-def mercadolivre_copy_preview(
+COPY_PLATFORM_LABELS = {
+    "mercado_livre": "Mercado Livre",
+    "mercadolivre": "Mercado Livre",
+    "ml": "Mercado Livre",
+    "shopee": "Shopee",
+    "shein": "SHEIN",
+    "temu": "Temu",
+    "tiktok": "TikTok Shop",
+    "tiktok_shop": "TikTok Shop",
+    "kwai": "Kwai Shop",
+    "kway": "Kwai Shop",
+    "kwai_shop": "Kwai Shop",
+}
+
+
+def normalize_copy_platform(value: str):
+    normalized = re.sub(r"[^a-z0-9]+", "_", (value or "").lower()).strip("_")
+    if normalized in COPY_PLATFORM_LABELS:
+        return normalized
+
+    raise HTTPException(status_code=400, detail="Plataforma de anuncio invalida")
+
+
+def copy_platform_label(platform: str):
+    return COPY_PLATFORM_LABELS.get(platform, platform.replace("_", " ").title())
+
+
+def require_copy_platform_supported(platform: str, action: str):
+    if platform in {"mercado_livre", "mercadolivre", "ml"}:
+        return
+
+    raise HTTPException(
+        status_code=501,
+        detail=(
+            f"O conector de {copy_platform_label(platform)} para {action} "
+            "ja esta previsto, mas ainda precisa da API oficial dessa plataforma."
+        ),
+    )
+
+
+@app.post("/integrations/listings/copy/preview")
+def marketplace_copy_preview(
     payload: CopyListingRequest,
     db: Session = Depends(get_db),
     user: models.User = Depends(require_user),
 ):
+    source_platform = normalize_copy_platform(payload.source_platform)
+    require_copy_platform_supported(source_platform, "capturar anuncios")
     require_ml_connection(db)
     item, description_text = fetch_ml_listing(payload.url or payload.source_id, db)
-    return serialize_ml_listing(item, description_text)
+    return serialize_ml_listing(item, description_text) | {
+        "source_platform": "mercado_livre",
+        "source_platform_label": "Mercado Livre",
+    }
 
 
-@app.post("/integrations/mercadolivre/copy/publish")
-def mercadolivre_copy_publish(
+@app.post("/integrations/listings/copy/publish")
+def marketplace_copy_publish(
     payload: PublishListingRequest,
     db: Session = Depends(get_db),
     user: models.User = Depends(require_user),
 ):
+    source_platform = normalize_copy_platform(payload.source_platform)
+    target_platform = normalize_copy_platform(payload.target_platform)
+    require_copy_platform_supported(source_platform, "capturar anuncios")
+    require_copy_platform_supported(target_platform, "publicar anuncios")
     require_ml_connection(db)
     source, description_text = fetch_ml_listing(payload.url or payload.source_id, db)
     clone_payload = build_ml_clone_payload(source, payload)
@@ -2611,7 +3243,30 @@ def mercadolivre_copy_publish(
         "permalink": created.get("permalink"),
         "status": created.get("status"),
         "title": created.get("title"),
+        "source_platform": "mercado_livre",
+        "target_platform": "mercado_livre",
     }
+
+
+@app.post("/integrations/mercadolivre/copy/preview")
+def mercadolivre_copy_preview(
+    payload: CopyListingRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    payload.source_platform = "mercado_livre"
+    return marketplace_copy_preview(payload, db, user)
+
+
+@app.post("/integrations/mercadolivre/copy/publish")
+def mercadolivre_copy_publish(
+    payload: PublishListingRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    payload.source_platform = "mercado_livre"
+    payload.target_platform = "mercado_livre"
+    return marketplace_copy_publish(payload, db, user)
 
 
 @app.post("/integrations/mercadolivre/disconnect")
@@ -2646,6 +3301,141 @@ def mercadolivre_me(
         "email": me.get("email"),
         "country_id": me.get("country_id"),
         "site_id": me.get("site_id"),
+    }
+
+
+@app.get("/integrations/shopee/status")
+def shopee_status(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    return serialize_shopee_status(db)
+
+
+@app.put("/integrations/shopee/config")
+def shopee_config_update(
+    payload: ShopeeConfigUpdate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    update_shopee_config(db, payload)
+    return serialize_shopee_status(db)
+
+
+@app.get("/integrations/shopee/connect")
+def shopee_connect(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    config = require_shopee_config(db)
+    state = create_shopee_oauth_state(user.id, db)
+    return {"authorization_url": build_shopee_authorization_url(config, state)}
+
+
+@app.get("/shopee/callback")
+def shopee_callback(
+    code: str = "",
+    shop_id: str = "",
+    state: str = "",
+    error: str = "",
+    db: Session = Depends(get_db),
+):
+    config = get_shopee_config(db)
+    return_url = config["frontend_return_url"] or "/"
+    separator = "&" if "?" in return_url else "?"
+
+    def redirect_with(status: str):
+        return RedirectResponse(url=f"{return_url}{separator}shopee_status={urllib.parse.quote(status)}", status_code=302)
+
+    if error:
+        return redirect_with(f"erro:{error}")
+
+    try:
+        if state:
+            consume_shopee_oauth_state(state, db)
+
+        if not code:
+            raise HTTPException(status_code=400, detail="Codigo de autorizacao ausente")
+
+        token_payload = shopee_token_request(code, shop_id, db)
+        credential = save_shopee_credential(token_payload, db)
+
+        if shop_id and not credential.external_user_id:
+            credential.external_user_id = str(shop_id)
+            db.commit()
+
+        try:
+            shop_info = shopee_shop_info_request(db)
+            credential.nickname = str(
+                shop_info.get("shop_name")
+                or shop_info.get("nickname")
+                or shop_info.get("name")
+                or credential.nickname
+                or ""
+            )
+            credential.external_user_id = str(
+                shop_info.get("shop_id")
+                or shop_info.get("merchant_id")
+                or credential.external_user_id
+                or ""
+            )
+            db.commit()
+        except HTTPException:
+            shop_info = {}
+
+        sync_shopee_store_integration(db, credential, shop_info)
+
+        return redirect_with("conectado")
+    except HTTPException as exc:
+        return redirect_with(f"erro:{str(exc.detail)}")
+
+
+@app.post("/integrations/shopee/disconnect")
+def shopee_disconnect(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    credential = get_shopee_credential(db)
+
+    if credential:
+        db.delete(credential)
+        db.commit()
+
+    mark_shopee_store_integrations_disconnected(db)
+
+    return {"message": "Conta Shopee desconectada"}
+
+
+@app.get("/integrations/shopee/me")
+def shopee_me(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    shop_info = shopee_shop_info_request(db)
+    credential = get_shopee_credential(db)
+
+    if credential:
+        credential.nickname = str(
+            shop_info.get("shop_name")
+            or shop_info.get("nickname")
+            or shop_info.get("name")
+            or credential.nickname
+            or ""
+        )
+        credential.external_user_id = str(
+            shop_info.get("shop_id")
+            or shop_info.get("merchant_id")
+            or credential.external_user_id
+            or ""
+        )
+        db.commit()
+
+        sync_shopee_store_integration(db, credential, shop_info)
+
+    return {
+        "shop_id": shop_info.get("shop_id") or shop_info.get("merchant_id"),
+        "shop_name": shop_info.get("shop_name") or shop_info.get("nickname") or shop_info.get("name"),
+        "nickname": (credential.nickname if credential else "") or shop_info.get("shop_name") or shop_info.get("nickname") or shop_info.get("name"),
     }
 
 
@@ -3019,7 +3809,7 @@ if (FRONTEND_DIST / "assets").exists():
 
 @app.get("/{full_path:path}")
 def serve_frontend(full_path: str):
-    api_only_prefixes = {"auth", "health", "fiscal", "integrations", "mercadolivre"}
+    api_only_prefixes = {"auth", "health", "fiscal", "integrations", "mercadolivre", "shopee"}
     first_path_part = full_path.split("/", 1)[0]
 
     if first_path_part in api_only_prefixes:

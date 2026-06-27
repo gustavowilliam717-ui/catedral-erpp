@@ -244,6 +244,7 @@ export default function ShippingSettings({
 }) {
   const pageConfig =
     marketplacePages[activePage] || marketplacePages["settings-shopee-labels"];
+  const storageKey = `shipping_methods_${pageConfig.group}`;
   const [country, setCountry] = useState("Brasil");
   const [search, setSearch] = useState("");
   const [methods, setMethods] = useState(pageConfig.methods);
@@ -259,26 +260,45 @@ export default function ShippingSettings({
   }, [activePage]);
 
   async function loadSettings() {
-    const response = await API.get(`/settings?group=${pageConfig.group}`);
-    const stored = response.data.find((item) => item.key === "shipping_methods");
+    try {
+      const response = await API.get(`/settings?group=${pageConfig.group}`);
+      let stored =
+        response.data.find((item) => item.key === storageKey) ||
+        response.data.find((item) => item.key === "shipping_methods");
 
-    if (stored?.value) {
-      try {
-        setMethods(mergeStoredMethods(pageConfig.methods, JSON.parse(stored.value)));
-      } catch (error) {
-        logError(error);
+      if (!stored) {
+        const allSettings = await API.get("/settings");
+        stored = allSettings.data.find((item) => item.key === "shipping_methods");
       }
+
+      if (stored?.value) {
+        try {
+          setMethods(mergeStoredMethods(pageConfig.methods, JSON.parse(stored.value)));
+        } catch (error) {
+          logError(error);
+        }
+      }
+    } catch (error) {
+      logError(error);
     }
   }
 
   async function saveMethods(nextMethods) {
-    setMethods(nextMethods);
-    await API.post("/settings", {
-      key: "shipping_methods",
-      value: JSON.stringify(nextMethods),
-      group: pageConfig.group,
-    });
-    setMessage("Configuracao de envio salva.");
+    const previousMethods = methods;
+
+    try {
+      setMethods(nextMethods);
+      await API.post("/settings", {
+        key: storageKey,
+        value: JSON.stringify(nextMethods),
+        group: pageConfig.group,
+      });
+      setMessage("Configuracao de envio salva.");
+    } catch (error) {
+      logError(error);
+      setMethods(previousMethods);
+      setMessage("Nao foi possivel salvar a configuracao de envio.");
+    }
   }
 
   function updateMethod(id, field, value) {

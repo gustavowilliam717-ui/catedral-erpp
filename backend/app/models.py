@@ -99,6 +99,7 @@ class VerificationCode(Base):
     email_code_hash = Column(String, default="")
     sms_code_hash = Column(String, default="")
     attempts = Column(Integer, default=0)
+    session_days = Column(Integer, default=7)
     expires_at = Column(DateTime, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

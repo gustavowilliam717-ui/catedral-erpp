@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import API from "../services/api";
+import { logError } from "../utils/logger";
 
 const marketplaces = [
   "Mercado Livre",
@@ -28,6 +29,72 @@ const emptyForm = {
   notes: "",
 };
 
+const shopeeApiDefaults = {
+  authUrl: "https://partner.shopeemobile.com/api/v2/shop/auth_partner",
+  tokenUrl: "https://partner.shopeemobile.com/api/v2/auth/token/get",
+  refreshUrl: "https://partner.shopeemobile.com/api/v2/auth/access_token/get",
+  shopInfoUrl: "https://partner.shopeemobile.com/api/v2/shop/get_shop_info",
+  apiBase: "https://partner.shopeemobile.com",
+};
+
+function getBackendCallbackUrl() {
+  const baseUrl = (API.defaults.baseURL || "http://127.0.0.1:8000").replace(/\/+$/, "");
+  return `${baseUrl}/shopee/callback`;
+}
+
+function getFrontendReturnUrl() {
+  return `${window.location.origin}${window.location.pathname}?page=store-integrations`;
+}
+
+function createShopeeDraft() {
+  return {
+    partnerId: "",
+    partnerKey: "",
+    shopId: "",
+    shopName: "",
+    environment: "production",
+    redirectUrl: getBackendCallbackUrl(),
+    frontendReturnUrl: getFrontendReturnUrl(),
+    authUrl: shopeeApiDefaults.authUrl,
+    tokenUrl: shopeeApiDefaults.tokenUrl,
+    refreshUrl: shopeeApiDefaults.refreshUrl,
+    shopInfoUrl: shopeeApiDefaults.shopInfoUrl,
+    apiBase: shopeeApiDefaults.apiBase,
+  };
+}
+
+function mapShopeeStatusToDraft(status = {}) {
+  return {
+    partnerId: status.partner_id || "",
+    shopId: status.shop_id || "",
+    shopName: status.shop_name || "",
+    environment: status.environment || "production",
+    redirectUrl: status.redirect_url || getBackendCallbackUrl(),
+    frontendReturnUrl: status.frontend_return_url || getFrontendReturnUrl(),
+    authUrl: status.auth_url || shopeeApiDefaults.authUrl,
+    tokenUrl: status.token_url || shopeeApiDefaults.tokenUrl,
+    refreshUrl: status.refresh_url || shopeeApiDefaults.refreshUrl,
+    shopInfoUrl: status.shop_info_url || shopeeApiDefaults.shopInfoUrl,
+    apiBase: status.api_base || shopeeApiDefaults.apiBase,
+  };
+}
+
+function readShopeeReturnStatus() {
+  const params = new URLSearchParams(window.location.search);
+  const status = params.get("shopee_status");
+
+  if (!status) return "";
+
+  params.delete("shopee_status");
+  params.set("page", "store-integrations");
+  const query = params.toString();
+  const newUrl =
+    window.location.pathname + (query ? `?${query}` : "") + window.location.hash;
+  window.history.replaceState({}, "", newUrl);
+
+  return status;
+}
+
 export default function StoreIntegrations() {
   const [integrations, setIntegrations] = useState([]);
   const [selectedMarketplace, setSelectedMarketplace] = useState("Shopee");
@@ -36,18 +103,86 @@ export default function StoreIntegrations() {
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState("");
+  const [shopeeStatus, setShopeeStatus] = useState(null);
+  const [shopeeDraft, setShopeeDraft] = useState(createShopeeDraft);
+  const [showShopeeConfig, setShowShopeeConfig] = useState(false);
+  const [authUrl, setAuthUrl] = useState("");
+  const [isSavingShopee, setIsSavingShopee] = useState(false);
+  const [isConnectingShopee, setIsConnectingShopee] = useState(false);
+  const [isTestingShopee, setIsTestingShopee] = useState(false);
+  const [isDisconnectingShopee, setIsDisconnectingShopee] = useState(false);
 
   useEffect(() => {
+    const returnStatus = readShopeeReturnStatus();
+
+    if (returnStatus === "conectado") {
+      setSelectedMarketplace("Shopee");
+      setMessage("Loja Shopee conectada.");
+    } else if (returnStatus.startsWith("erro:")) {
+      setSelectedMarketplace("Shopee");
+      setMessage(`Falha ao conectar Shopee: ${returnStatus.slice(5)}`);
+    }
+
     loadIntegrations();
+    loadShopeeStatus();
   }, []);
 
+  useEffect(() => {
+    if (!authUrl) return undefined;
+
+    const interval = window.setInterval(async () => {
+      const status = await loadShopeeStatus({ silent: true });
+
+      if (status?.connected) {
+        setAuthUrl("");
+        setMessage("Loja Shopee conectada.");
+        loadIntegrations();
+      }
+    }, 3000);
+
+    return () => window.clearInterval(interval);
+  }, [authUrl]);
+
   async function loadIntegrations() {
-    const response = await API.get("/store-integrations");
-    setIntegrations(response.data || []);
+    try {
+      const response = await API.get("/store-integrations");
+      setIntegrations(response.data || []);
+    } catch (error) {
+      logError(error);
+      setMessage("Nao foi possivel carregar as lojas conectadas.");
+    }
+  }
+
+  async function loadShopeeStatus(options = {}) {
+    const { silent = false } = options;
+
+    try {
+      const response = await API.get("/integrations/shopee/status");
+      const data = response.data || {};
+      setShopeeStatus(data);
+      setShopeeDraft((current) => ({
+        ...current,
+        ...mapShopeeStatusToDraft(data),
+        partnerKey: current.partnerKey,
+      }));
+      return data;
+    } catch (error) {
+      logError(error);
+
+      if (!silent) {
+        setMessage("Nao foi possivel carregar a conexao da Shopee.");
+      }
+
+      return null;
+    }
   }
 
   function update(field, value) {
     setForm({ ...form, [field]: value });
+  }
+
+  function updateShopee(field, value) {
+    setShopeeDraft((current) => ({ ...current, [field]: value }));
   }
 
   async function saveIntegration(event) {
@@ -58,18 +193,23 @@ export default function StoreIntegrations() {
       return;
     }
 
-    if (editingId) {
-      await API.put(`/store-integrations/${editingId}`, form);
-      setMessage("Loja atualizada.");
-    } else {
-      await API.post("/store-integrations", form);
-      setMessage("Loja adicionada.");
-    }
+    try {
+      if (editingId) {
+        await API.put(`/store-integrations/${editingId}`, form);
+        setMessage("Loja atualizada.");
+      } else {
+        await API.post("/store-integrations", form);
+        setMessage("Loja adicionada.");
+      }
 
-    setForm({ ...emptyForm, marketplace: selectedMarketplace });
-    setEditingId(null);
-    setShowForm(false);
-    loadIntegrations();
+      setForm({ ...emptyForm, marketplace: selectedMarketplace });
+      setEditingId(null);
+      setShowForm(false);
+      loadIntegrations();
+    } catch (error) {
+      logError(error);
+      setMessage("Nao foi possivel salvar a loja.");
+    }
   }
 
   function editIntegration(integration) {
@@ -89,9 +229,14 @@ export default function StoreIntegrations() {
   async function deleteIntegration(id) {
     if (!window.confirm("Deseja remover esta loja integrada?")) return;
 
-    await API.delete(`/store-integrations/${id}`);
-    setMessage("Loja removida.");
-    loadIntegrations();
+    try {
+      await API.delete(`/store-integrations/${id}`);
+      setMessage("Loja removida.");
+      loadIntegrations();
+    } catch (error) {
+      logError(error);
+      setMessage("Nao foi possivel remover a loja.");
+    }
   }
 
   function startNewIntegration() {
@@ -99,6 +244,116 @@ export default function StoreIntegrations() {
     setForm({ ...emptyForm, marketplace: selectedMarketplace });
     setShowForm(true);
     setMessage("");
+  }
+
+  async function persistShopeeConfig(options = {}) {
+    const { silent = false } = options;
+
+    if (!silent) {
+      setMessage("");
+    }
+
+    try {
+      setIsSavingShopee(true);
+      const response = await API.put("/integrations/shopee/config", {
+        partner_id: shopeeDraft.partnerId,
+        partner_key: shopeeDraft.partnerKey,
+        shop_id: shopeeDraft.shopId,
+        shop_name: shopeeDraft.shopName,
+        environment: shopeeDraft.environment,
+        redirect_url: shopeeDraft.redirectUrl || getBackendCallbackUrl(),
+        frontend_return_url: getFrontendReturnUrl(),
+        auth_url: shopeeDraft.authUrl,
+        token_url: shopeeDraft.tokenUrl,
+        refresh_url: shopeeDraft.refreshUrl,
+        shop_info_url: shopeeDraft.shopInfoUrl,
+        api_base: shopeeDraft.apiBase,
+      });
+      const data = response.data || {};
+      setShopeeStatus(data);
+      setShopeeDraft((current) => ({
+        ...current,
+        ...mapShopeeStatusToDraft(data),
+        partnerKey: "",
+      }));
+
+      if (!silent) {
+        setMessage("Credenciais da Shopee salvas.");
+      }
+
+      return data;
+    } catch (error) {
+      logError(error);
+
+      if (!silent) {
+        setMessage(error?.response?.data?.detail || "Nao foi possivel salvar a Shopee.");
+      }
+
+      throw error;
+    } finally {
+      setIsSavingShopee(false);
+    }
+  }
+
+  async function connectShopee() {
+    const hasPartnerId = shopeeDraft.partnerId || shopeeStatus?.partner_id_present;
+    const hasPartnerKey = shopeeDraft.partnerKey || shopeeStatus?.partner_key_configured;
+
+    if (!hasPartnerId || !hasPartnerKey) {
+      setShowShopeeConfig(true);
+      setMessage("Informe Partner ID e Partner Key antes de conectar a loja.");
+      return;
+    }
+
+    try {
+      setIsConnectingShopee(true);
+      setMessage("");
+      await persistShopeeConfig({ silent: true });
+      const response = await API.get("/integrations/shopee/connect");
+      setAuthUrl(response.data.authorization_url);
+      setMessage("Login da Shopee aberto.");
+    } catch (error) {
+      logError(error);
+      setMessage(error?.response?.data?.detail || "Nao foi possivel abrir a Shopee.");
+    } finally {
+      setIsConnectingShopee(false);
+    }
+  }
+
+  async function testShopeeConnection() {
+    try {
+      setIsTestingShopee(true);
+      setMessage("");
+      const response = await API.get("/integrations/shopee/me");
+      const shopName = response.data?.shop_name || response.data?.nickname || "Loja Shopee";
+      const shopId = response.data?.shop_id || "-";
+      setMessage(`Conexao ativa: ${shopName} (ID ${shopId}).`);
+      await loadShopeeStatus();
+      await loadIntegrations();
+    } catch (error) {
+      logError(error);
+      setMessage(error?.response?.data?.detail || "Nao foi possivel validar a Shopee.");
+    } finally {
+      setIsTestingShopee(false);
+    }
+  }
+
+  async function disconnectShopee() {
+    if (!window.confirm("Deseja desconectar a conta da Shopee?")) return;
+
+    try {
+      setIsDisconnectingShopee(true);
+      setMessage("");
+      await API.post("/integrations/shopee/disconnect");
+      setMessage("Conta Shopee desconectada.");
+      await loadShopeeStatus();
+      await loadIntegrations();
+    } catch (error) {
+      logError(error);
+      setMessage(error?.response?.data?.detail || "Nao foi possivel desconectar a Shopee.");
+    } finally {
+      setIsDisconnectingShopee(false);
+    }
   }
 
   const marketplaceCounts = useMemo(() => {
@@ -121,6 +376,17 @@ export default function StoreIntegrations() {
 
     return marketplaceMatch && searchMatch;
   });
+
+  const isShopeeSelected = selectedMarketplace === "Shopee";
+  const shopeeConnected = Boolean(shopeeStatus?.connected);
+  const shopeeConfigured = Boolean(shopeeStatus?.configured);
+  const shopeeStatusLabel = shopeeConnected
+    ? shopeeStatus?.token_expired
+      ? "Token expirado"
+      : "Conectada"
+    : shopeeConfigured
+      ? "Pronta para login"
+      : "Credenciais pendentes";
 
   return (
     <div className="integrations-page">
@@ -152,16 +418,19 @@ export default function StoreIntegrations() {
         <section className="integration-header-card">
           <div>
             <span className="section-kicker">{selectedMarketplace}</span>
-            <h1>Lojas conectadas</h1>
+            <h1>Conectar lojas</h1>
             <p>
-              Cadastre as lojas que serao conectadas ao ERP. Quando a API estiver
-              autorizada, cada loja podera sincronizar produtos, pedidos, estoque
-              e financeiro.
+              Selecione o marketplace, entre com a conta oficial e confirme a
+              autorizacao da loja.
             </p>
           </div>
 
-          <button type="button" onClick={startNewIntegration}>
-            + Conectar loja
+          <button
+            type="button"
+            onClick={isShopeeSelected ? connectShopee : startNewIntegration}
+            disabled={isShopeeSelected && isConnectingShopee}
+          >
+            {isShopeeSelected && isConnectingShopee ? "Abrindo..." : "+ Conectar loja"}
           </button>
         </section>
 
@@ -182,6 +451,126 @@ export default function StoreIntegrations() {
             onChange={(event) => setSearch(event.target.value)}
           />
         </section>
+
+        {isShopeeSelected && (
+          <section className="box shopee-connect-panel">
+            <div className="section-heading">
+              <div>
+                <span className="section-kicker">Shopee</span>
+                <h2>Conta da loja</h2>
+              </div>
+              <span
+                className={`integration-status ${
+                  shopeeConnected ? "ativo" : shopeeConfigured ? "" : "erro"
+                }`}
+              >
+                {shopeeStatusLabel}
+              </span>
+            </div>
+
+            <div className="shopee-connect-summary">
+              <div>
+                <span>Loja</span>
+                <strong>{shopeeStatus?.shop_name || shopeeDraft.shopName || "-"}</strong>
+              </div>
+              <div>
+                <span>Shop ID</span>
+                <strong>
+                  {shopeeStatus?.external_user_id || shopeeStatus?.shop_id || shopeeDraft.shopId || "-"}
+                </strong>
+              </div>
+              <div>
+                <span>Ambiente</span>
+                <strong>{shopeeStatus?.environment || shopeeDraft.environment}</strong>
+              </div>
+              <div>
+                <span>Callback</span>
+                <strong>{shopeeDraft.redirectUrl || getBackendCallbackUrl()}</strong>
+              </div>
+            </div>
+
+            <div className="integration-actions">
+              <button type="button" onClick={connectShopee} disabled={isConnectingShopee}>
+                {isConnectingShopee ? "Abrindo Shopee..." : "Conectar com Shopee"}
+              </button>
+              <button
+                type="button"
+                onClick={testShopeeConnection}
+                disabled={isTestingShopee || !shopeeConnected}
+              >
+                {isTestingShopee ? "Validando..." : "Validar conexao"}
+              </button>
+              {shopeeConnected && (
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={disconnectShopee}
+                  disabled={isDisconnectingShopee}
+                >
+                  {isDisconnectingShopee ? "Desconectando..." : "Desconectar"}
+                </button>
+              )}
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setShowShopeeConfig((current) => !current)}
+              >
+                Credenciais
+              </button>
+            </div>
+
+            {(showShopeeConfig || !shopeeConfigured) && (
+              <form
+                className="shopee-credential-grid"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  persistShopeeConfig().catch(() => {});
+                }}
+              >
+                <input
+                  placeholder="Partner ID"
+                  value={shopeeDraft.partnerId}
+                  onChange={(event) => updateShopee("partnerId", event.target.value)}
+                />
+                <input
+                  type="password"
+                  placeholder={
+                    shopeeStatus?.partner_key_configured
+                      ? "Partner Key ja salva"
+                      : "Partner Key"
+                  }
+                  value={shopeeDraft.partnerKey}
+                  onChange={(event) => updateShopee("partnerKey", event.target.value)}
+                />
+                <input
+                  placeholder="Shop ID"
+                  value={shopeeDraft.shopId}
+                  onChange={(event) => updateShopee("shopId", event.target.value)}
+                />
+                <input
+                  placeholder="Nome da loja"
+                  value={shopeeDraft.shopName}
+                  onChange={(event) => updateShopee("shopName", event.target.value)}
+                />
+                <select
+                  value={shopeeDraft.environment}
+                  onChange={(event) => updateShopee("environment", event.target.value)}
+                >
+                  <option value="production">Producao</option>
+                  <option value="sandbox">Sandbox</option>
+                </select>
+                <input
+                  placeholder="Redirect URL"
+                  value={shopeeDraft.redirectUrl}
+                  onChange={(event) => updateShopee("redirectUrl", event.target.value)}
+                />
+                <button type="submit" disabled={isSavingShopee}>
+                  {isSavingShopee ? "Salvando..." : "Salvar credenciais"}
+                </button>
+              </form>
+            )}
+          </section>
+        )}
 
         {showForm && (
           <section className="box integration-form-card">
@@ -307,6 +696,45 @@ export default function StoreIntegrations() {
           </table>
         </section>
       </main>
+
+      {authUrl && (
+        <div className="shopee-auth-overlay" role="dialog" aria-modal="true">
+          <section className="shopee-auth-modal">
+            <div className="section-heading">
+              <div>
+                <span className="section-kicker">Shopee</span>
+                <h2>Login da loja</h2>
+              </div>
+              <button type="button" onClick={() => setAuthUrl("")}>
+                Fechar
+              </button>
+            </div>
+
+            <iframe
+              title="Login Shopee"
+              src={authUrl}
+              className="shopee-auth-frame"
+            />
+
+            <div className="integration-actions">
+              <button type="button" onClick={() => window.location.assign(authUrl)}>
+                Abrir em tela inteira
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setAuthUrl("");
+                  loadShopeeStatus();
+                  loadIntegrations();
+                }}
+              >
+                Ja confirmei
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

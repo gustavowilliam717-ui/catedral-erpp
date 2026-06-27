@@ -132,6 +132,7 @@ export default function Login({ onAuthenticated }) {
           email_code: form.emailCode,
           sms_code: form.smsCode,
           accepted_terms: form.acceptedTerms,
+          remember: form.remember,
         });
 
         completeLogin(response.data);
@@ -188,20 +189,22 @@ export default function Login({ onAuthenticated }) {
     try {
       setIsLoading(true);
       const endpoint = needsSetup ? "/auth/setup" : "/auth/login";
-      const payload = needsSetup
-        ? {
-            name: form.name,
-            email: form.email,
-            password: form.password,
-            verification_channel: form.verificationChannel,
-            phone: form.phone,
-          }
-        : {
-            email: form.email,
-            password: form.password,
-            verification_channel: form.verificationChannel,
-            phone: form.phone,
-          };
+        const payload = needsSetup
+          ? {
+              name: form.name,
+              email: form.email,
+              password: form.password,
+              verification_channel: form.verificationChannel,
+              phone: form.phone,
+              remember: form.remember,
+            }
+          : {
+              email: form.email,
+              password: form.password,
+              verification_channel: form.verificationChannel,
+              phone: form.phone,
+              remember: form.remember,
+            };
       const response = await API.post(endpoint, payload);
 
       if (response.data.requires_verification) {

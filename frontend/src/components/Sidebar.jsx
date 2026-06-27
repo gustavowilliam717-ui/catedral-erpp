@@ -74,7 +74,23 @@ export default function Sidebar({ page, setPage, user, onLogout }) {
     const marketplaceMatch = column.marketplaces?.some((marketplace) =>
       marketplace.actions.some((action) => action.page === currentPage)
     );
-    return Boolean(itemMatch || marketplaceMatch);
+    const adMarketplaceMatch = column.adMarketplaces?.some((marketplace) =>
+      marketplace.integrationPage === currentPage ||
+      marketplace.actions.some((action) => action.page === currentPage)
+    );
+    const notAuthorizedMatch = column.notAuthorized?.some(
+      (marketplace) => marketplace.page === currentPage
+    );
+    return Boolean(
+      itemMatch ||
+      marketplaceMatch ||
+      adMarketplaceMatch ||
+      notAuthorizedMatch
+    );
+  }
+
+  function getMarketplaceConnection(marketplaceKey) {
+    return liveMarketplaces.find((item) => item.key === marketplaceKey);
   }
 
   function openShortcut(shortcutPage) {
@@ -134,6 +150,79 @@ export default function Sidebar({ page, setPage, user, onLogout }) {
                             )}
                           </button>
                         ))}
+
+                        {column.adMarketplaces && (
+                          <div className="product-ad-list">
+                            {column.adMarketplaces.map((marketplace) => {
+                              const connection = getMarketplaceConnection(
+                                marketplace.key
+                              );
+                              const isConnected = Boolean(connection);
+
+                              return (
+                                <div
+                                  className={`product-ad-row ${
+                                    isConnected ? "connected" : "pending"
+                                  }`}
+                                  key={marketplace.key}
+                                >
+                                  <button
+                                    type="button"
+                                    className={`product-marketplace-brand ${marketplace.key}`}
+                                    onClick={() =>
+                                      setPage(
+                                        isConnected
+                                          ? marketplace.actions[1]?.page ||
+                                              marketplace.actions[0]?.page
+                                          : marketplace.integrationPage
+                                      )
+                                    }
+                                  >
+                                    <strong>{marketplace.label}</strong>
+                                    <span>
+                                      {isConnected
+                                        ? connection.nickname || "Autorizado"
+                                        : "Conectar"}
+                                    </span>
+                                  </button>
+
+                                  <div className="product-ad-actions">
+                                    {marketplace.actions.map((action) => (
+                                      <button
+                                        type="button"
+                                        key={action.page}
+                                        className={
+                                          page === action.page ? "selected" : ""
+                                        }
+                                        onClick={() => setPage(action.page)}
+                                      >
+                                        {action.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {column.notAuthorized && (
+                          <div className="not-authorized-block">
+                            <strong>Nao Autorizado</strong>
+                            <div>
+                              {column.notAuthorized.map((marketplace) => (
+                                <button
+                                  type="button"
+                                  key={marketplace.page}
+                                  className="unauthorized-marketplace"
+                                  onClick={() => setPage(marketplace.page)}
+                                >
+                                  {marketplace.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         {column.marketplaces && (
                           <div className="marketplace-ad-list">

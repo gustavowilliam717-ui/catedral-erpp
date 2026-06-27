@@ -48,8 +48,17 @@ function PageLoader() {
   );
 }
 
+function resolveInitialPage() {
+  const params = new URLSearchParams(window.location.search);
+
+  if (params.has("shopee_status")) return "store-integrations";
+  if (params.has("ml_status")) return "mercado-livre-integration";
+
+  return params.get("page") || "dashboard";
+}
+
 function App() {
-  const [page, setPage] = useState("dashboard");
+  const [page, setPage] = useState(resolveInitialPage);
   const [pricingProductId, setPricingProductId] = useState("");
   const [user, setUser] = useState(() => {
     const stored = localStorage.getItem("catedral_user");
@@ -328,7 +337,7 @@ function App() {
           {page === "chat" && <Chat />}
           {page === "plans" && <Plans />}
           {page === "app-download" && <AppDownload />}
-          {page === "product-importer" && <ProductImporter />}
+          {page === "product-importer" && <ProductImporter setPage={setPage} />}
           {page === "data-space" && <DataSpace />}
           {page === "importShopee" && <ImportShopee />}
           {page === "store-integrations" && <StoreIntegrations />}

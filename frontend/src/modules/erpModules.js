@@ -11,9 +11,59 @@ export const erpModules = [
     menuVariant: "product-menu",
     columns: [
       {
+        title: "Gerenciamento de Produtos",
+        items: [
+          { page: "products", label: "Produtos do Armazem" },
+          { page: "product-mapping", label: "Gerenciar Mapeamento" },
+          { page: "product-categories", label: "Categorias" },
+        ],
+      },
+      {
+        title: "Gestao de Anuncios",
+        adMarketplaces: [
+          {
+            key: "mercado_livre",
+            label: "Mercado Livre",
+            integrationPage: "mercado-livre-integration",
+            actions: [
+              { page: "mercado-livre-ad-drafts", label: "Rascunhos" },
+              { page: "mercado-livre-active-ads", label: "Ativo" },
+              { page: "mercado-livre-create-ad", label: "Criar Anuncio" },
+              { page: "mercado-livre-catalog", label: "Catalogo" },
+              { page: "mercado-livre-promotions", label: "Promocoes" },
+              { page: "mercado-livre-user-products", label: "User Product" },
+            ],
+          },
+          {
+            key: "shopee",
+            label: "Shopee",
+            integrationPage: "store-integrations",
+            actions: [
+              { page: "shopee-ad-drafts", label: "Rascunhos" },
+              { page: "shopee-active-ads", label: "Ativo" },
+              { page: "shopee-create-ad", label: "Criar Anuncio" },
+              { page: "shopee-ad-marketing", label: "Marketing" },
+            ],
+          },
+        ],
+        notAuthorized: [
+          { page: "amazon-integration", label: "Amazon" },
+          { page: "shein-integration", label: "SHEIN" },
+          { page: "tiktok-integration", label: "TikTok Shop" },
+          { page: "shopify-integration", label: "Shopify" },
+          { page: "nuvemshop-integration", label: "Nuvemshop" },
+          { page: "temu-integration", label: "Temu" },
+          { page: "walmart-integration", label: "Walmart" },
+          { page: "magalu-integration", label: "Magalu" },
+          { page: "aliexpress-integration", label: "AliExpress" },
+          { page: "kwai-integration", label: "Kwai Shop" },
+          { page: "americanas-integration", label: "Americanas" },
+        ],
+      },
+      {
         title: "Ferramentas",
         items: [
-          { page: "product-importer", label: "Importacao de Produto" },
+          { page: "product-importer", label: "Copiador de Anuncios" },
           { page: "ad-migration", label: "Migracao de Anuncios", badge: "Hot" },
           { page: "code-control", label: "Controle de Codigo" },
           { page: "price-models", label: "Modelo de Precificacao", badge: "Novo" },
@@ -228,7 +278,6 @@ export const erpModules = [
         title: "Marketplaces",
         items: [
           { page: "store-integrations", label: "Integracoes de Loja", active: true },
-          { page: "shopee-api", label: "Shopee API e Pedidos" },
           { page: "importShopee", label: "Importar Shopee", active: true },
           { page: "mercado-livre-integration", label: "Mercado Livre" },
           { page: "amazon-integration", label: "Amazon" },
@@ -297,8 +346,23 @@ export const flatModulePages = erpModules.flatMap((module) =>
         marketplace: marketplace.label,
       }))
     );
+    const adMarketplacePages = (column.adMarketplaces || []).flatMap((marketplace) =>
+      [
+        { page: marketplace.integrationPage, label: `Conectar ${marketplace.label}` },
+        ...marketplace.actions,
+      ].map((action) => ({
+        ...action,
+        marketplace: marketplace.label,
+      }))
+    );
+    const notAuthorizedPages = column.notAuthorized || [];
 
-    return [...itemPages, ...marketplacePages].map((item) => ({
+    return [
+      ...itemPages,
+      ...marketplacePages,
+      ...adMarketplacePages,
+      ...notAuthorizedPages,
+    ].map((item) => ({
       ...item,
       module: module.label,
       group: column.title,
