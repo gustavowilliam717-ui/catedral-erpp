@@ -1061,7 +1061,8 @@ def normalize_shopee_environment(value: str):
 
 
 def get_shopee_config(db: Session):
-    config = get_shopee_defaults()
+    defaults = get_shopee_defaults()
+    config = defaults.copy()
     stored = get_setting_value(db, SHOPEE_CONFIG_SETTING_KEY, "", group="shopee").strip()
 
     if stored:
@@ -1070,18 +1071,38 @@ def get_shopee_config(db: Session):
         except (TypeError, ValueError):
             pass
 
+    env_overrides = {
+        "partner_id": "SHOPEE_PARTNER_ID",
+        "partner_key": "SHOPEE_PARTNER_KEY",
+        "shop_id": "SHOPEE_SHOP_ID",
+        "environment": "SHOPEE_ENVIRONMENT",
+        "redirect_url": "SHOPEE_REDIRECT_URI",
+        "frontend_return_url": "SHOPEE_FRONTEND_RETURN_URL",
+        "auth_url": "SHOPEE_AUTH_URL",
+        "token_url": "SHOPEE_TOKEN_URL",
+        "refresh_url": "SHOPEE_REFRESH_URL",
+        "shop_info_url": "SHOPEE_SHOP_INFO_URL",
+        "api_base": "SHOPEE_API_BASE",
+    }
+
+    for key, env_name in env_overrides.items():
+        env_value = os.getenv(env_name, "").strip()
+
+        if env_value:
+            config[key] = env_value
+
     config["partner_id"] = str(config.get("partner_id") or "").strip()
     config["partner_key"] = str(config.get("partner_key") or "").strip()
     config["shop_id"] = str(config.get("shop_id") or "").strip()
     config["shop_name"] = str(config.get("shop_name") or "").strip()
     config["environment"] = normalize_shopee_environment(config.get("environment"))
-    config["redirect_url"] = str(config.get("redirect_url") or "").strip() or get_shopee_defaults()["redirect_url"]
+    config["redirect_url"] = str(config.get("redirect_url") or "").strip() or defaults["redirect_url"]
     config["frontend_return_url"] = str(config.get("frontend_return_url") or "").strip() or "/"
-    config["auth_url"] = str(config.get("auth_url") or "").strip() or get_shopee_defaults()["auth_url"]
-    config["token_url"] = str(config.get("token_url") or "").strip() or get_shopee_defaults()["token_url"]
-    config["refresh_url"] = str(config.get("refresh_url") or "").strip() or get_shopee_defaults()["refresh_url"]
-    config["shop_info_url"] = str(config.get("shop_info_url") or "").strip() or get_shopee_defaults()["shop_info_url"]
-    config["api_base"] = str(config.get("api_base") or "").strip().rstrip("/") or get_shopee_defaults()["api_base"]
+    config["auth_url"] = str(config.get("auth_url") or "").strip() or defaults["auth_url"]
+    config["token_url"] = str(config.get("token_url") or "").strip() or defaults["token_url"]
+    config["refresh_url"] = str(config.get("refresh_url") or "").strip() or defaults["refresh_url"]
+    config["shop_info_url"] = str(config.get("shop_info_url") or "").strip() or defaults["shop_info_url"]
+    config["api_base"] = str(config.get("api_base") or "").strip().rstrip("/") or defaults["api_base"]
 
     return config
 
