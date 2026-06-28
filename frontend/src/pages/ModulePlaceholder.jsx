@@ -27,7 +27,7 @@ const moduleNeeds = {
   "mercado-envios-full": ["SKU Full", "saldo no Full", "em transito", "disponivel para venda"],
   "shopee-fbs": ["SKU FBS", "saldo no FBS", "reserva", "divergencia"],
   "amazon-fba": ["FNSKU", "saldo FBA", "estoque reservado", "reposicao"],
-  "fulfillment-magalu": ["SKU Magalu", "saldo fulfillment", "status", "ultima sincronizacao"],
+  "stock-temu": ["loja Temu", "SKU", "estoque publicado", "reserva por pedido"],
   "stock-reservations": ["pedido", "marketplace", "SKU reservado", "prazo de liberacao"],
   "stock-in-transit": ["marketplace", "remessa", "quantidade", "previsao de chegada"],
   "stock-divergences": ["SKU", "saldo ERP", "saldo marketplace", "acao corretiva"],

@@ -25,6 +25,18 @@ const feeRules = [
     fixedDescription: "Sem taxa fixa cadastrada",
     notes: "Percentual padrao local.",
   },
+  {
+    marketplace: "Shein",
+    percent: 10,
+    fixedDescription: "Sem taxa fixa cadastrada",
+    notes: "Taxa base local para comparacao.",
+  },
+  {
+    marketplace: "Temu",
+    percent: 8,
+    fixedDescription: "Sem taxa fixa cadastrada",
+    notes: "Taxa base local para comparacao.",
+  },
 ];
 
 function formatCurrency(value) {
@@ -67,6 +79,14 @@ function getMarketplaceRule(marketplace, price, adType, sellerType) {
 
   if (marketplace === "Amazon") {
     return { percent: 16, fixed: 0 };
+  }
+
+  if (marketplace === "Shein") {
+    return { percent: 10, fixed: 0 };
+  }
+
+  if (marketplace === "Temu") {
+    return { percent: 8, fixed: 0 };
   }
 
   return { percent: 16, fixed: 0 };

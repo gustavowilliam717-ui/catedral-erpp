@@ -20,8 +20,16 @@ const copyPlatforms = [
     copyStatus: "planned",
   },
   {
+    key: "amazon",
+    label: "Amazon",
+    shortLabel: "AZ",
+    placeholder: "https://www.amazon.com.br/dp/...",
+    integrationPage: "amazon-integration",
+    copyStatus: "planned",
+  },
+  {
     key: "shein",
-    label: "SHEIN",
+    label: "Shein",
     shortLabel: "SH",
     placeholder: "https://br.shein.com/...",
     integrationPage: "shein-integration",
@@ -36,19 +44,11 @@ const copyPlatforms = [
     copyStatus: "planned",
   },
   {
-    key: "tiktok_shop",
+    key: "tiktok",
     label: "TikTok Shop",
     shortLabel: "TT",
     placeholder: "https://shop.tiktok.com/...",
     integrationPage: "tiktok-integration",
-    copyStatus: "planned",
-  },
-  {
-    key: "kwai",
-    label: "Kwai Shop",
-    shortLabel: "KW",
-    placeholder: "https://www.kwai.com/...",
-    integrationPage: "kwai-integration",
     copyStatus: "planned",
   },
 ];

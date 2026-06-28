@@ -22,6 +22,7 @@ const Chat = lazy(() => import("./pages/Chat"));
 const AppDownload = lazy(() => import("./pages/AppDownload"));
 const DataSpace = lazy(() => import("./pages/DataSpace"));
 const ImportShopee = lazy(() => import("./pages/ImportShopee"));
+const MarketplaceConnect = lazy(() => import("./pages/MarketplaceConnect"));
 const MarketplaceFees = lazy(() => import("./pages/MarketplaceFees"));
 const MercadoLivreIntegration = lazy(() => import("./pages/MercadoLivreIntegration"));
 const ModulePlaceholder = lazy(() => import("./pages/ModulePlaceholder"));
@@ -123,6 +124,11 @@ function App() {
     "store-integrations",
     "shopee-api",
     "mercado-livre-integration",
+    "amazon-integration",
+    "shein-integration",
+    "tiktok-integration",
+    "temu-integration",
+    "stock-temu",
     "settings-orders",
     "settings-nfe",
     "settings-dce",
@@ -231,8 +237,15 @@ function App() {
     "stock-shein",
     "stock-tiktok",
     "stock-amazon",
+    "stock-temu",
     "stock-reposition-rules",
   ];
+  const marketplaceConnectPages = {
+    "amazon-integration": { provider: "amazon", label: "Amazon" },
+    "shein-integration": { provider: "shein", label: "Shein" },
+    "tiktok-integration": { provider: "tiktok", label: "TikTok Shop" },
+    "temu-integration": { provider: "temu", label: "Temu" },
+  };
 
   useEffect(() => {
     async function validateSession() {
@@ -343,6 +356,13 @@ function App() {
           {page === "store-integrations" && <StoreIntegrations />}
           {page === "shopee-api" && <ShopeeIntegration />}
           {page === "mercado-livre-integration" && <MercadoLivreIntegration />}
+          {marketplaceConnectPages[page] && (
+            <MarketplaceConnect
+              provider={marketplaceConnectPages[page].provider}
+              label={marketplaceConnectPages[page].label}
+              page={page}
+            />
+          )}
           {accountPages.includes(page) && (
             <AccountSettings activePage={page} setPage={setPage} user={user} />
           )}

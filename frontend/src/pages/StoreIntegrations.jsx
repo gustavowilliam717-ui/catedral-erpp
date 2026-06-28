@@ -8,15 +8,7 @@ const marketplaces = [
   "Amazon",
   "Shein",
   "TikTok Shop",
-  "Shopify",
-  "Nuvemshop",
   "Temu",
-  "Walmart",
-  "AliExpress",
-  "Magalu",
-  "Kwai",
-  "Americanas",
-  "Loja Fisica",
 ];
 
 const emptyForm = {

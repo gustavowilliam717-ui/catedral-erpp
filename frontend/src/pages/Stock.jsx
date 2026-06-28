@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import API from "../services/api";
-import { logError } from "../utils/logger";
+import API from "../services/api";
+import { logError } from "../utils/logger";
 
 const marketplaceOptions = [
   "Todos",
@@ -9,7 +9,7 @@ const marketplaceOptions = [
   "Shein",
   "TikTok Shop",
   "Amazon",
-  "Magalu",
+  "Temu",
 ];
 
 const stockPageConfig = {

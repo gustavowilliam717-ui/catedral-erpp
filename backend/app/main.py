@@ -286,6 +286,24 @@ class ShopeeConfigUpdate(BaseModel):
     api_base: str = ""
 
 
+class GenericConnectorConfigUpdate(BaseModel):
+    app_key: str = ""
+    app_secret: str = ""
+    shop_id: str = ""
+    shop_name: str = ""
+    environment: str = "production"
+    redirect_url: str = ""
+    frontend_return_url: str = ""
+    auth_url: str = ""
+    token_url: str = ""
+    refresh_url: str = ""
+    shop_info_url: str = ""
+    products_url: str = ""
+    orders_url: str = ""
+    api_base: str = ""
+    sign_method: str = ""
+
+
 class FiscalConfigUpdate(BaseModel):
     provider: str = "focus_nfe"
     environment: str = "homologacao"
@@ -2741,8 +2759,9 @@ def dashboard(
     shopee_count = len([p for p in products if p.marketplace == "Shopee"])
     ml_count = len([p for p in products if p.marketplace == "Mercado Livre"])
     amazon_count = len([p for p in products if p.marketplace == "Amazon"])
-    magalu_count = len([p for p in products if p.marketplace == "Magalu"])
+    shein_count = len([p for p in products if p.marketplace == "Shein"])
     tiktok_count = len([p for p in products if p.marketplace == "TikTok Shop"])
+    temu_count = len([p for p in products if p.marketplace == "Temu"])
 
     return {
         "total_products": len(products),
@@ -2755,8 +2774,9 @@ def dashboard(
             "Shopee": shopee_count,
             "Mercado Livre": ml_count,
             "Amazon": amazon_count,
-            "Magalu": magalu_count,
-            "TikTok Shop": tiktok_count
+            "Shein": shein_count,
+            "TikTok Shop": tiktok_count,
+            "Temu": temu_count
         },
 
         "low_stock_products": low_stock_products
@@ -3122,6 +3142,33 @@ def list_connected_marketplaces(
 
     marketplaces.append(shopee_entry)
 
+    generic_pages = {
+        "amazon": "amazon-integration",
+        "shein": "shein-integration",
+        "tiktok": "tiktok-integration",
+        "temu": "temu-integration",
+    }
+
+    for provider, meta in GENERIC_CONNECTORS.items():
+        credential = get_generic_credential(db, provider)
+        connected = bool(credential and credential.access_token)
+        entry = {
+            "key": provider,
+            "label": meta["label"],
+            "connected": connected,
+            "integration_page": generic_pages.get(provider, "store-integrations"),
+            "products_page": "products",
+            "total_ads": 0,
+            "active_ads": 0,
+            "paused_ads": 0,
+            "nickname": credential.nickname if credential else "",
+        }
+
+        if connected:
+            entry.update(count_marketplace_ads(db, meta["label"]))
+
+        marketplaces.append(entry)
+
     return {
         "marketplaces": marketplaces,
         "connected": [item for item in marketplaces if item["connected"]],
@@ -3246,13 +3293,11 @@ COPY_PLATFORM_LABELS = {
     "mercadolivre": "Mercado Livre",
     "ml": "Mercado Livre",
     "shopee": "Shopee",
-    "shein": "SHEIN",
+    "amazon": "Amazon",
+    "shein": "Shein",
     "temu": "Temu",
     "tiktok": "TikTok Shop",
     "tiktok_shop": "TikTok Shop",
-    "kwai": "Kwai Shop",
-    "kway": "Kwai Shop",
-    "kwai_shop": "Kwai Shop",
 }
 
 
@@ -3521,6 +3566,906 @@ def shopee_me(
         "shop_name": shop_info.get("shop_name") or shop_info.get("nickname") or shop_info.get("name"),
         "nickname": (credential.nickname if credential else "") or shop_info.get("shop_name") or shop_info.get("nickname") or shop_info.get("name"),
     }
+
+
+# =========================================================================
+# Conectores genericos de marketplace (Amazon, SHEIN, TikTok Shop, Temu)
+# Replicam o padrao da Shopee/Mercado Livre: configuracao + OAuth + status
+# + sincronizacao de produtos e pedidos. As URLs e credenciais sao
+# configuraveis por plataforma porque cada API oficial usa endpoints proprios.
+# =========================================================================
+
+GENERIC_CONNECTORS = {
+    "amazon": {
+        "label": "Amazon",
+        "env_prefix": "AMAZON",
+        "sign_method": "bearer",
+        "defaults": {
+            "auth_url": "https://sellercentral.amazon.com/apps/authorize/consent",
+            "token_url": "https://api.amazon.com/auth/o2/token",
+            "refresh_url": "https://api.amazon.com/auth/o2/token",
+            "shop_info_url": "https://sellingpartnerapi-na.amazon.com/sellers/v1/marketplaceParticipations",
+            "products_url": "https://sellingpartnerapi-na.amazon.com/catalog/2022-04-01/items",
+            "orders_url": "https://sellingpartnerapi-na.amazon.com/orders/v0/orders",
+            "api_base": "https://sellingpartnerapi-na.amazon.com",
+        },
+    },
+    "shein": {
+        "label": "Shein",
+        "env_prefix": "SHEIN",
+        "sign_method": "hmac",
+        "defaults": {
+            "auth_url": "https://open.sheincorp.com/api/oauth/authorize",
+            "token_url": "https://open.sheincorp.com/api/oauth/token",
+            "refresh_url": "https://open.sheincorp.com/api/oauth/refreshToken",
+            "shop_info_url": "https://open.sheincorp.com/api/shop/info",
+            "products_url": "https://open.sheincorp.com/api/product/list",
+            "orders_url": "https://open.sheincorp.com/api/order/list",
+            "api_base": "https://open.sheincorp.com",
+        },
+    },
+    "tiktok": {
+        "label": "TikTok Shop",
+        "env_prefix": "TIKTOK",
+        "sign_method": "hmac",
+        "defaults": {
+            "auth_url": "https://services.tiktokshop.com/open/authorize",
+            "token_url": "https://auth.tiktok-shops.com/api/v2/token/get",
+            "refresh_url": "https://auth.tiktok-shops.com/api/v2/token/refresh",
+            "shop_info_url": "https://open-api.tiktokglobalshop.com/authorization/202309/shops",
+            "products_url": "https://open-api.tiktokglobalshop.com/product/202309/products/search",
+            "orders_url": "https://open-api.tiktokglobalshop.com/order/202309/orders/search",
+            "api_base": "https://open-api.tiktokglobalshop.com",
+        },
+    },
+    "temu": {
+        "label": "Temu",
+        "env_prefix": "TEMU",
+        "sign_method": "hmac",
+        "defaults": {
+            "auth_url": "https://partner.temu.com/api/oauth/authorize",
+            "token_url": "https://partner.temu.com/api/oauth/token",
+            "refresh_url": "https://partner.temu.com/api/oauth/refreshToken",
+            "shop_info_url": "https://partner.temu.com/api/mms/shop/info",
+            "products_url": "https://partner.temu.com/api/mms/product/list",
+            "orders_url": "https://partner.temu.com/api/mms/order/list",
+            "api_base": "https://partner.temu.com",
+        },
+    },
+}
+
+GENERIC_CONFIG_FIELDS = (
+    "app_key",
+    "app_secret",
+    "shop_id",
+    "shop_name",
+    "environment",
+    "redirect_url",
+    "frontend_return_url",
+    "auth_url",
+    "token_url",
+    "refresh_url",
+    "shop_info_url",
+    "products_url",
+    "orders_url",
+    "api_base",
+    "sign_method",
+)
+
+GENERIC_ENV_MAP = {
+    "app_key": "APP_KEY",
+    "app_secret": "APP_SECRET",
+    "shop_id": "SHOP_ID",
+    "environment": "ENVIRONMENT",
+    "redirect_url": "REDIRECT_URI",
+    "frontend_return_url": "FRONTEND_RETURN_URL",
+    "auth_url": "AUTH_URL",
+    "token_url": "TOKEN_URL",
+    "refresh_url": "REFRESH_URL",
+    "shop_info_url": "SHOP_INFO_URL",
+    "products_url": "PRODUCTS_URL",
+    "orders_url": "ORDERS_URL",
+    "api_base": "API_BASE",
+    "sign_method": "SIGN_METHOD",
+}
+
+
+def get_connector_meta(provider: str):
+    meta = GENERIC_CONNECTORS.get((provider or "").strip().lower())
+
+    if not meta:
+        raise HTTPException(status_code=404, detail="Conector de marketplace nao encontrado.")
+
+    return meta
+
+
+def generic_env_overrides(provider: str):
+    meta = get_connector_meta(provider)
+    prefix = meta["env_prefix"]
+    overrides = {}
+
+    for field, env_suffix in GENERIC_ENV_MAP.items():
+        value = os.getenv(f"{prefix}_{env_suffix}", "").strip()
+
+        if value:
+            overrides[field] = value
+
+    return overrides
+
+
+def get_generic_defaults(provider: str):
+    meta = get_connector_meta(provider)
+    defaults = meta["defaults"]
+
+    return {
+        "app_key": "",
+        "app_secret": "",
+        "shop_id": "",
+        "shop_name": "",
+        "environment": "production",
+        "redirect_url": f"http://127.0.0.1:8000/integrations/{provider}/callback",
+        "frontend_return_url": "/",
+        "auth_url": defaults["auth_url"],
+        "token_url": defaults["token_url"],
+        "refresh_url": defaults["refresh_url"],
+        "shop_info_url": defaults["shop_info_url"],
+        "products_url": defaults.get("products_url", ""),
+        "orders_url": defaults.get("orders_url", ""),
+        "api_base": defaults["api_base"],
+        "sign_method": meta["sign_method"],
+    }
+
+
+def get_generic_config(db: Session, provider: str):
+    defaults = get_generic_defaults(provider)
+    config = defaults.copy()
+    stored = get_setting_value(db, f"{provider}_config", "", group=provider).strip()
+
+    if stored:
+        try:
+            parsed = json.loads(stored)
+            if isinstance(parsed, dict):
+                config.update({k: v for k, v in parsed.items() if k in GENERIC_CONFIG_FIELDS})
+        except (TypeError, ValueError):
+            pass
+
+    config.update(generic_env_overrides(provider))
+
+    for field in GENERIC_CONFIG_FIELDS:
+        config[field] = str(config.get(field) or "").strip()
+
+    config["environment"] = config["environment"].lower() or "production"
+    config["api_base"] = config["api_base"].rstrip("/") or defaults["api_base"]
+    config["sign_method"] = (config["sign_method"] or defaults["sign_method"]).lower()
+
+    if config["sign_method"] not in {"hmac", "bearer"}:
+        config["sign_method"] = defaults["sign_method"]
+
+    for field in (
+        "redirect_url",
+        "frontend_return_url",
+        "auth_url",
+        "token_url",
+        "refresh_url",
+        "shop_info_url",
+    ):
+        config[field] = config[field] or defaults[field]
+
+    return config
+
+
+def update_generic_config(db: Session, provider: str, payload: GenericConnectorConfigUpdate):
+    current = get_generic_config(db, provider)
+    updates = payload.model_dump()
+
+    for key, value in updates.items():
+        if key not in GENERIC_CONFIG_FIELDS:
+            continue
+
+        if isinstance(value, str):
+            cleaned = value.strip()
+
+            if cleaned:
+                current[key] = cleaned
+        elif value is not None:
+            current[key] = value
+
+    current["environment"] = (current.get("environment") or "production").lower()
+    upsert_setting_value(
+        db,
+        f"{provider}_config",
+        json.dumps({k: current.get(k, "") for k in GENERIC_CONFIG_FIELDS}, ensure_ascii=False),
+        group=provider,
+    )
+    db.commit()
+    return current
+
+
+def require_generic_config(db: Session, provider: str):
+    meta = get_connector_meta(provider)
+    config = get_generic_config(db, provider)
+    missing = [name for name, key in (("App Key", "app_key"), ("App Secret", "app_secret"), ("Redirect URL", "redirect_url")) if not config[key]]
+
+    if missing:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"{meta['label']} nao configurada. Defina "
+                + ", ".join(missing)
+                + " na tela de integracao ou no backend/.env."
+            ),
+        )
+
+    return config
+
+
+def get_generic_credential(db: Session, provider: str):
+    return (
+        db.query(models.MarketplaceCredential)
+        .filter(models.MarketplaceCredential.provider == provider)
+        .first()
+    )
+
+
+def create_generic_oauth_state(provider: str, user_id: int, db: Session):
+    state = secrets.token_urlsafe(32)
+    expires_at = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
+    upsert_setting_value(
+        db,
+        f"state:{state}",
+        json.dumps({"user_id": user_id, "expires_at": expires_at}),
+        group=f"{provider}_oauth",
+    )
+    db.commit()
+    return state
+
+
+def consume_generic_oauth_state(provider: str, state: str, db: Session):
+    if not state:
+        return {}
+
+    setting = (
+        db.query(models.Setting)
+        .filter(models.Setting.group == f"{provider}_oauth", models.Setting.key == f"state:{state}")
+        .first()
+    )
+
+    if not setting:
+        raise HTTPException(status_code=400, detail="Autorizacao invalida ou expirada. Tente novamente.")
+
+    try:
+        data = json.loads(setting.value or "{}")
+        expires_at = datetime.fromisoformat(data.get("expires_at"))
+    except (ValueError, TypeError):
+        expires_at = datetime.utcnow() - timedelta(seconds=1)
+        data = {}
+
+    db.delete(setting)
+    db.commit()
+
+    if expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Autorizacao expirada. Tente novamente.")
+
+    return data
+
+
+def save_generic_credential(provider: str, token_payload: dict, db: Session):
+    expires_in = int(
+        token_payload.get("expires_in")
+        or token_payload.get("expire_in")
+        or token_payload.get("access_token_expire_in")
+        or 0
+    )
+    credential = get_generic_credential(db, provider)
+
+    if not credential:
+        credential = models.MarketplaceCredential(provider=provider)
+        db.add(credential)
+
+    credential.external_user_id = str(
+        token_payload.get("shop_id")
+        or token_payload.get("seller_id")
+        or token_payload.get("merchant_id")
+        or token_payload.get("user_id")
+        or credential.external_user_id
+        or ""
+    )
+    credential.nickname = str(
+        token_payload.get("shop_name")
+        or token_payload.get("seller_name")
+        or token_payload.get("merchant_name")
+        or token_payload.get("nickname")
+        or credential.nickname
+        or ""
+    )
+    credential.access_token = str(token_payload.get("access_token") or "")
+    credential.refresh_token = str(token_payload.get("refresh_token") or credential.refresh_token or "")
+    credential.token_type = str(token_payload.get("token_type") or "bearer")
+    credential.scope = str(token_payload.get("scope") or "")
+    credential.expires_at = datetime.utcnow() + timedelta(seconds=expires_in) if expires_in else None
+    credential.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(credential)
+    return credential
+
+
+def generic_request(
+    provider: str,
+    method: str,
+    url_or_path: str,
+    db: Session,
+    *,
+    params: dict | None = None,
+    body: dict | None = None,
+    access_token: str = "",
+    shop_id: str = "",
+):
+    config = require_generic_config(db, provider)
+    meta = get_connector_meta(provider)
+
+    if url_or_path.startswith("http://") or url_or_path.startswith("https://"):
+        url = url_or_path
+    else:
+        url = f"{config['api_base'].rstrip('/')}/{url_or_path.lstrip('/')}"
+
+    parsed = urllib.parse.urlparse(url)
+    path = parsed.path or "/"
+    query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+    headers = {}
+
+    if config["sign_method"] == "hmac":
+        timestamp = str(int(time.time()))
+        sign = build_shopee_signature(
+            config["app_key"],
+            config["app_secret"],
+            path,
+            timestamp,
+            access_token=access_token,
+            shop_id=shop_id,
+        )
+        query.update({"app_key": config["app_key"], "timestamp": timestamp, "sign": sign})
+
+        if access_token:
+            query["access_token"] = access_token
+        if shop_id:
+            query["shop_id"] = shop_id
+    else:
+        if access_token:
+            headers["Authorization"] = f"Bearer {access_token}"
+            headers["x-amz-access-token"] = access_token
+
+    for key, value in (params or {}).items():
+        if value not in (None, ""):
+            query[key] = value
+
+    final_url = urllib.parse.urlunparse(parsed._replace(query=urllib.parse.urlencode(query, doseq=True)))
+    payload = None
+
+    if body is not None:
+        payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+
+    data = http_json_request(
+        method,
+        final_url,
+        data=payload,
+        headers=headers or None,
+        error_prefix=f"Falha {meta['label']}",
+    )
+
+    if isinstance(data, dict):
+        error = str(data.get("error") or data.get("code") or "").strip()
+
+        if error and error not in {"0", "success", "Success"}:
+            message = data.get("message") or data.get("msg") or error
+            raise HTTPException(status_code=502, detail=f"Falha {meta['label']}: {message}")
+
+        for key in ("response", "data", "result"):
+            if isinstance(data.get(key), (dict, list)):
+                return data[key]
+
+    return data
+
+
+def refresh_generic_token(provider: str, credential: models.MarketplaceCredential, db: Session):
+    config = require_generic_config(db, provider)
+
+    if not credential.refresh_token:
+        raise HTTPException(status_code=401, detail=f"{get_connector_meta(provider)['label']} desconectada. Conecte a conta novamente.")
+
+    if config["sign_method"] == "bearer":
+        body = urllib.parse.urlencode(
+            {
+                "grant_type": "refresh_token",
+                "refresh_token": credential.refresh_token,
+                "client_id": config["app_key"],
+                "client_secret": config["app_secret"],
+            }
+        ).encode("utf-8")
+        token_payload = http_json_request(
+            "POST",
+            config["refresh_url"],
+            data=body,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            error_prefix=f"Falha {get_connector_meta(provider)['label']}",
+        )
+    else:
+        request_body = {"app_key": config["app_key"], "refresh_token": credential.refresh_token}
+        target_shop_id = str(credential.external_user_id or config["shop_id"]).strip()
+
+        if target_shop_id:
+            request_body["shop_id"] = target_shop_id
+
+        token_payload = generic_request(provider, "POST", config["refresh_url"], db, body=request_body)
+
+    return save_generic_credential(provider, token_payload, db)
+
+
+def get_valid_generic_access_token(db: Session, provider: str):
+    credential = get_generic_credential(db, provider)
+
+    if not credential or not credential.access_token:
+        raise HTTPException(status_code=401, detail=f"{get_connector_meta(provider)['label']} nao conectada. Conecte a conta primeiro.")
+
+    if credential.expires_at and credential.expires_at <= datetime.utcnow() + timedelta(minutes=5):
+        credential = refresh_generic_token(provider, credential, db)
+
+    return credential.access_token, credential
+
+
+def serialize_generic_status(db: Session, provider: str):
+    meta = get_connector_meta(provider)
+    config = get_generic_config(db, provider)
+    credential = get_generic_credential(db, provider)
+    token_expired = bool(credential and credential.expires_at and credential.expires_at <= datetime.utcnow())
+
+    return {
+        "provider": provider,
+        "label": meta["label"],
+        "configured": bool(config["app_key"] and config["app_secret"] and config["redirect_url"]),
+        "connected": bool(credential and credential.access_token),
+        "token_expired": token_expired,
+        "app_key": config["app_key"],
+        "app_key_present": bool(config["app_key"]),
+        "secret_configured": bool(config["app_secret"]),
+        "shop_id": config["shop_id"],
+        "shop_name": (credential.nickname if credential and credential.nickname else config["shop_name"]),
+        "external_user_id": credential.external_user_id if credential else "",
+        "environment": config["environment"],
+        "sign_method": config["sign_method"],
+        "redirect_url": config["redirect_url"],
+        "frontend_return_url": config["frontend_return_url"],
+        "auth_url": config["auth_url"],
+        "token_url": config["token_url"],
+        "refresh_url": config["refresh_url"],
+        "shop_info_url": config["shop_info_url"],
+        "products_url": config["products_url"],
+        "orders_url": config["orders_url"],
+        "api_base": config["api_base"],
+        "expires_at": credential.expires_at.isoformat() if credential and credential.expires_at else None,
+        "updated_at": credential.updated_at.isoformat() if credential and credential.updated_at else None,
+    }
+
+
+def build_generic_authorization_url(provider: str, config: dict, state: str):
+    auth_url = config["auth_url"]
+    parsed = urllib.parse.urlparse(auth_url)
+    existing_query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+
+    if config["sign_method"] == "hmac":
+        timestamp = str(int(time.time()))
+        path = parsed.path or "/"
+        sign = build_shopee_signature(config["app_key"], config["app_secret"], path, timestamp)
+        redirect_url = append_url_params(config["redirect_url"], {"state": state})
+        existing_query.update(
+            {
+                "app_key": config["app_key"],
+                "timestamp": timestamp,
+                "sign": sign,
+                "redirect": redirect_url,
+                "state": state,
+            }
+        )
+    else:
+        existing_query.update(
+            {
+                "response_type": "code",
+                "client_id": config["app_key"],
+                "redirect_uri": config["redirect_url"],
+                "state": state,
+            }
+        )
+
+    return urllib.parse.urlunparse(parsed._replace(query=urllib.parse.urlencode(existing_query, doseq=True)))
+
+
+def generic_token_request(provider: str, code: str, shop_id: str, db: Session):
+    config = require_generic_config(db, provider)
+
+    if config["sign_method"] == "bearer":
+        body = urllib.parse.urlencode(
+            {
+                "grant_type": "authorization_code",
+                "code": code,
+                "client_id": config["app_key"],
+                "client_secret": config["app_secret"],
+                "redirect_uri": config["redirect_url"],
+            }
+        ).encode("utf-8")
+        return http_json_request(
+            "POST",
+            config["token_url"],
+            data=body,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            error_prefix=f"Falha {get_connector_meta(provider)['label']}",
+        )
+
+    request_body = {"app_key": config["app_key"], "code": code}
+    target_shop_id = str(shop_id or config["shop_id"]).strip()
+
+    if target_shop_id:
+        request_body["shop_id"] = target_shop_id
+
+    return generic_request(provider, "POST", config["token_url"], db, body=request_body)
+
+
+def generic_shop_info_request(db: Session, provider: str):
+    config = get_generic_config(db, provider)
+
+    if not config["shop_info_url"]:
+        raise HTTPException(status_code=400, detail="Configure a URL de informacoes da loja para validar a conexao.")
+
+    access_token, credential = get_valid_generic_access_token(db, provider)
+    return generic_request(
+        provider,
+        "GET",
+        config["shop_info_url"],
+        db,
+        access_token=access_token,
+        shop_id=credential.external_user_id or config["shop_id"],
+    )
+
+
+def sync_generic_store_integration(provider: str, db: Session, credential: models.MarketplaceCredential, shop_info: dict | None = None):
+    meta = get_connector_meta(provider)
+    label = meta["label"]
+    shop_info = shop_info if isinstance(shop_info, dict) else {}
+    shop_id = str(
+        shop_info.get("shop_id")
+        or shop_info.get("seller_id")
+        or shop_info.get("merchant_id")
+        or credential.external_user_id
+        or ""
+    ).strip()
+    store_name = str(
+        shop_info.get("shop_name")
+        or shop_info.get("seller_name")
+        or shop_info.get("name")
+        or credential.nickname
+        or f"Loja {label}"
+    ).strip()
+    country = str(shop_info.get("region") or shop_info.get("country") or "BR").strip() or "BR"
+    query = db.query(models.StoreIntegration).filter(models.StoreIntegration.marketplace == label)
+
+    if shop_id:
+        integration = query.filter(models.StoreIntegration.shop_id == shop_id).first()
+    else:
+        integration = query.filter(models.StoreIntegration.shop_id == "").first()
+
+    if not integration:
+        integration = models.StoreIntegration(marketplace=label)
+        db.add(integration)
+
+    integration.store_name = store_name
+    integration.country = country
+    integration.shop_id = shop_id
+    integration.status = "Ativo"
+    integration.auth_date = datetime.utcnow().strftime("%d/%m/%Y %H:%M")
+    integration.notes = f"Autorizada pela API oficial de {label}"
+    db.commit()
+    db.refresh(integration)
+    return integration
+
+
+def mark_generic_store_integrations_disconnected(provider: str, db: Session):
+    label = get_connector_meta(provider)["label"]
+    integrations = (
+        db.query(models.StoreIntegration)
+        .filter(models.StoreIntegration.marketplace == label)
+        .all()
+    )
+
+    for integration in integrations:
+        integration.status = "Expirado"
+        integration.notes = f"Conta {label} desconectada"
+
+    db.commit()
+
+
+def _generic_extract_list(data):
+    if isinstance(data, list):
+        return data
+
+    if isinstance(data, dict):
+        for key in ("items", "products", "product_list", "list", "results", "orders", "order_list", "data"):
+            value = data.get(key)
+
+            if isinstance(value, list):
+                return value
+
+            if isinstance(value, dict):
+                for sub in ("items", "products", "list", "results", "orders"):
+                    if isinstance(value.get(sub), list):
+                        return value[sub]
+
+    return []
+
+
+def _generic_field(item, *keys, default=""):
+    if not isinstance(item, dict):
+        return default
+
+    for key in keys:
+        if item.get(key) not in (None, ""):
+            return item.get(key)
+
+    return default
+
+
+def sync_generic_products(provider: str, db: Session):
+    config = get_generic_config(db, provider)
+    label = get_connector_meta(provider)["label"]
+
+    if not config["products_url"]:
+        raise HTTPException(status_code=400, detail="Configure a URL de produtos para sincronizar.")
+
+    access_token, credential = get_valid_generic_access_token(db, provider)
+    data = generic_request(
+        provider,
+        "GET",
+        config["products_url"],
+        db,
+        access_token=access_token,
+        shop_id=credential.external_user_id or config["shop_id"],
+    )
+    items = _generic_extract_list(data)
+    created = 0
+    updated = 0
+
+    for item in items:
+        external = str(_generic_field(item, "item_id", "product_id", "id", "sku_id") or "").strip()
+        sku = str(_generic_field(item, "sku", "seller_sku", "model_sku") or external).strip()
+
+        if not sku:
+            continue
+
+        name = str(_generic_field(item, "name", "title", "product_name", "item_name") or sku).strip()
+        price = parse_number(_generic_field(item, "price", "sale_price", "current_price", "item_price"), 0)
+        stock = int(parse_number(_generic_field(item, "stock", "quantity", "available_quantity", "stock_quantity"), 0))
+        status = str(_generic_field(item, "status", "state") or "").strip().lower()
+
+        existing = (
+            db.query(models.Product)
+            .filter(models.Product.marketplace == label, models.Product.sku == sku)
+            .first()
+        )
+
+        if existing:
+            existing.name = name
+            existing.sale_price = price
+            existing.stock = stock
+            existing.marketplace_status = status
+
+            if external and not existing.barcode:
+                existing.barcode = external
+
+            updated += 1
+        else:
+            db.add(
+                models.Product(
+                    sku=sku,
+                    name=name,
+                    sale_price=price,
+                    stock=stock,
+                    barcode=external,
+                    marketplace=label,
+                    marketplace_status=status,
+                    minimum_stock=0,
+                )
+            )
+            created += 1
+
+    db.commit()
+    return {"items_found": len(items), "created": created, "updated": updated}
+
+
+def sync_generic_orders(provider: str, db: Session):
+    config = get_generic_config(db, provider)
+    label = get_connector_meta(provider)["label"]
+
+    if not config["orders_url"]:
+        return {"orders_found": 0, "created": 0, "updated": 0, "skipped": 0}
+
+    access_token, credential = get_valid_generic_access_token(db, provider)
+    data = generic_request(
+        provider,
+        "GET",
+        config["orders_url"],
+        db,
+        access_token=access_token,
+        shop_id=credential.external_user_id or config["shop_id"],
+    )
+    orders = _generic_extract_list(data)
+    found = len(orders)
+    created = 0
+    updated = 0
+    skipped = 0
+
+    for order in orders:
+        order_id = str(_generic_field(order, "order_id", "order_sn", "id", "orderId") or "").strip()
+
+        if not order_id:
+            skipped += 1
+            continue
+
+        external_id = f"{provider}:{order_id}"
+        total = parse_number(
+            _generic_field(order, "total_amount", "total_price", "payment_amount", "amount", "total"),
+            0,
+        )
+        description = f"Venda {label} #{order_id}"[:240]
+        existing = db.query(models.Revenue).filter(models.Revenue.external_id == external_id).first()
+
+        if existing:
+            existing.value = total
+            existing.description = description
+            existing.marketplace = label
+            updated += 1
+        else:
+            db.add(
+                models.Revenue(
+                    description=description,
+                    value=total,
+                    category="Venda",
+                    marketplace=label,
+                    external_id=external_id,
+                )
+            )
+            created += 1
+
+    db.commit()
+    return {"orders_found": found, "created": created, "updated": updated, "skipped": skipped}
+
+
+@app.get("/integrations/{provider}/status")
+def generic_connector_status(
+    provider: str,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    get_connector_meta(provider)
+    return serialize_generic_status(db, provider)
+
+
+@app.put("/integrations/{provider}/config")
+def generic_connector_config_update(
+    provider: str,
+    payload: GenericConnectorConfigUpdate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    get_connector_meta(provider)
+    update_generic_config(db, provider, payload)
+    return serialize_generic_status(db, provider)
+
+
+@app.get("/integrations/{provider}/connect")
+def generic_connector_connect(
+    provider: str,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    config = require_generic_config(db, provider)
+    state = create_generic_oauth_state(provider, user.id, db)
+    return {"authorization_url": build_generic_authorization_url(provider, config, state)}
+
+
+@app.get("/integrations/{provider}/callback")
+def generic_connector_callback(
+    provider: str,
+    code: str = "",
+    shop_id: str = "",
+    state: str = "",
+    error: str = "",
+    db: Session = Depends(get_db),
+):
+    get_connector_meta(provider)
+    config = get_generic_config(db, provider)
+    return_url = config["frontend_return_url"] or "/"
+    separator = "&" if "?" in return_url else "?"
+
+    def redirect_with(status: str):
+        return RedirectResponse(
+            url=f"{return_url}{separator}{provider}_status={urllib.parse.quote(status)}",
+            status_code=302,
+        )
+
+    if error:
+        return redirect_with(f"erro:{error}")
+
+    try:
+        if state:
+            consume_generic_oauth_state(provider, state, db)
+
+        if not code:
+            raise HTTPException(status_code=400, detail="Codigo de autorizacao ausente")
+
+        token_payload = generic_token_request(provider, code, shop_id, db)
+        credential = save_generic_credential(provider, token_payload, db)
+
+        if shop_id and not credential.external_user_id:
+            credential.external_user_id = str(shop_id)
+            db.commit()
+
+        try:
+            shop_info = generic_shop_info_request(db, provider)
+        except HTTPException:
+            shop_info = {}
+
+        sync_generic_store_integration(provider, db, credential, shop_info)
+        return redirect_with("conectado")
+    except HTTPException as exc:
+        return redirect_with(f"erro:{str(exc.detail)}")
+
+
+@app.post("/integrations/{provider}/disconnect")
+def generic_connector_disconnect(
+    provider: str,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    meta = get_connector_meta(provider)
+    credential = get_generic_credential(db, provider)
+
+    if credential:
+        db.delete(credential)
+        db.commit()
+
+    mark_generic_store_integrations_disconnected(provider, db)
+    return {"message": f"Conta {meta['label']} desconectada"}
+
+
+@app.get("/integrations/{provider}/me")
+def generic_connector_me(
+    provider: str,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    get_connector_meta(provider)
+    shop_info = generic_shop_info_request(db, provider)
+    credential = get_generic_credential(db, provider)
+
+    if credential:
+        sync_generic_store_integration(provider, db, credential, shop_info if isinstance(shop_info, dict) else {})
+
+    info = shop_info if isinstance(shop_info, dict) else {}
+    return {
+        "shop_id": info.get("shop_id") or info.get("seller_id") or info.get("merchant_id"),
+        "shop_name": info.get("shop_name") or info.get("seller_name") or info.get("name"),
+        "nickname": (credential.nickname if credential else "") or info.get("shop_name") or info.get("name"),
+    }
+
+
+@app.post("/integrations/{provider}/sync")
+def generic_connector_sync(
+    provider: str,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    get_connector_meta(provider)
+    products_result = sync_generic_products(provider, db)
+    orders_result = sync_generic_orders(provider, db)
+    return {"products": products_result, "orders": orders_result}
 
 
 @app.post("/products")
