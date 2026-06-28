@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import API from "../services/api";
 import { logError } from "../utils/logger";
 import { useT } from "../i18n/LanguageContext";
+import { helpContent } from "../help/helpContent";
 
 function useNotificationPrefs() {
   const [prefs, setPrefs] = useState({ notifications: {}, security: {} });
@@ -175,7 +176,7 @@ function AccountSidebar({ activePage, setPage }) {
   const { t } = useT();
   return (
     <aside className="settings-sidebar">
-      <h2>{t("Configuracoes")} {t("Minha Conta")}</h2>
+      <h2>{t("Configuracoes da Conta")}</h2>
 
       {sidebarGroups.map((group) => (
         <div key={group.title}>
@@ -589,22 +590,136 @@ function TransactionsSettings() {
 }
 
 function HelpCenter() {
+  const [moduleKey, setModuleKey] = useState(helpContent[0]?.moduleKey || "");
+  const [search, setSearch] = useState("");
+  const [openId, setOpenId] = useState("");
+
+  const term = search.trim().toLowerCase();
+  const searching = term.length > 1;
+  const activeModule =
+    helpContent.find((module) => module.moduleKey === moduleKey) || helpContent[0];
+
+  const searchResults = searching
+    ? helpContent.flatMap((module) =>
+        module.topics
+          .filter((topic) =>
+            `${topic.title} ${topic.summary} ${topic.path} ${(topic.steps || []).join(" ")}`
+              .toLowerCase()
+              .includes(term)
+          )
+          .map((topic) => ({ ...topic, moduleLabel: module.moduleLabel }))
+      )
+    : [];
+
+  const topics = searching ? searchResults : activeModule?.topics || [];
+
   return (
-    <section className="settings-tool-card account-card">
-      <h2>Central de Ajuda</h2>
-      <div className="help-grid">
-        <article>
-          <strong>Guias de integracao</strong>
-          <span>Shopee, Mercado Livre, anuncios, estoque e pedidos.</span>
-        </article>
-        <article>
-          <strong>Atendimento</strong>
-          <span>Abra uma solicitacao para suporte da plataforma.</span>
-        </article>
-        <article>
-          <strong>Base de conhecimento</strong>
-          <span>Passo a passo para configurar o ERP com seguranca.</span>
-        </article>
+    <section className="settings-tool-card account-card help-center">
+      <div className="help-header">
+        <div>
+          <h2>Central de Ajuda</h2>
+          <p>
+            Passo a passo de cada funcao do NEXT ERP. Busque sua duvida ou
+            escolha uma area abaixo.
+          </p>
+        </div>
+        <input
+          className="help-search"
+          placeholder="Buscar ajuda (ex: conectar Shopee, precificar, estoque)"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      </div>
+
+      <div className="help-body">
+        {!searching && (
+          <aside className="help-categories">
+            {helpContent.map((module) => (
+              <button
+                type="button"
+                key={module.moduleKey}
+                className={module.moduleKey === moduleKey ? "active" : ""}
+                onClick={() => {
+                  setModuleKey(module.moduleKey);
+                  setOpenId("");
+                }}
+              >
+                <span>{module.icon}</span>
+                <strong>{module.moduleLabel}</strong>
+                <em>{module.topics.length}</em>
+              </button>
+            ))}
+          </aside>
+        )}
+
+        <div className="help-topics">
+          {!searching && activeModule?.intro && (
+            <p className="help-intro">{activeModule.intro}</p>
+          )}
+          {searching && (
+            <p className="help-intro">
+              {topics.length} resultado(s) para "{search}".
+            </p>
+          )}
+
+          {topics.map((topic) => {
+            const id = `${topic.moduleLabel || moduleKey}:${topic.id}`;
+            const open = openId === id;
+
+            return (
+              <article key={id} className={`help-topic ${open ? "open" : ""}`}>
+                <button
+                  type="button"
+                  className="help-topic-head"
+                  onClick={() => setOpenId(open ? "" : id)}
+                >
+                  <div>
+                    <strong>{topic.title}</strong>
+                    <span>{topic.path}</span>
+                  </div>
+                  <i>{open ? "−" : "+"}</i>
+                </button>
+
+                {open && (
+                  <div className="help-topic-body">
+                    <p>{topic.summary}</p>
+
+                    {topic.steps?.length > 0 && (
+                      <ol className="help-steps">
+                        {topic.steps.map((step, index) => (
+                          <li key={index}>{step.replace(/^\s*\d+\.\s*/, "")}</li>
+                        ))}
+                      </ol>
+                    )}
+
+                    {topic.tips?.length > 0 && (
+                      <div className="help-tips">
+                        <strong>Dicas</strong>
+                        <ul>
+                          {topic.tips.map((tip, index) => (
+                            <li key={index}>{tip}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {topic.faq?.length > 0 && (
+                      <div className="help-faq">
+                        <strong>Perguntas frequentes</strong>
+                        {topic.faq.map((item, index) => (
+                          <div key={index} className="help-faq-item">
+                            <b>{item.q}</b>
+                            <span>{item.a}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
       </div>
     </section>
   );
