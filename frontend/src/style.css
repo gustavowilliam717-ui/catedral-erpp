@@ -4912,6 +4912,85 @@ button {
   line-height: 1.4;
 }
 
+/* Contas a Receber */
+.receivable-tabs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.receivable-tabs button {
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.receivable-tabs button.active {
+  background: #1d4ed8;
+  color: #fff;
+  border-color: #1d4ed8;
+}
+.receivable-tabs select,
+.receivable-tabs input {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.receivable-tabs input {
+  flex: 1;
+  min-width: 180px;
+}
+.receivable-market-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.receivable-market-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.receivable-market-row > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 12px;
+}
+.rec-released { color: #15803d; font-weight: 600; }
+.rec-pending { color: #b45309; }
+.receivable-withdrawals {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.receivable-bar-row {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.receivable-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  overflow: hidden;
+}
+.receivable-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #2563eb, #22c55e);
+}
+
 .sac-command-card {
   display: flex;
   align-items: center;

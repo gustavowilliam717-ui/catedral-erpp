@@ -27,6 +27,7 @@ const MarketplaceConnect = lazy(() => import("./pages/MarketplaceConnect"));
 const MarketplaceFees = lazy(() => import("./pages/MarketplaceFees"));
 const FieldMapping = lazy(() => import("./pages/FieldMapping"));
 const AccountsPayable = lazy(() => import("./pages/AccountsPayable"));
+const AccountsReceivable = lazy(() => import("./pages/AccountsReceivable"));
 const ModuleWorkspace = lazy(() => import("./pages/ModuleWorkspace"));
 const MercadoLivreIntegration = lazy(() => import("./pages/MercadoLivreIntegration"));
 const OrderSettings = lazy(() => import("./pages/OrderSettings"));
@@ -331,9 +332,12 @@ function App() {
             <ProductCategories setPage={setPage} />
           )}
           {page === "accounts-payable" && <AccountsPayable setPage={setPage} />}
-          {financePages.includes(page) && page !== "accounts-payable" && (
-            <Finance activePage={page} setPage={setPage} />
-          )}
+          {page === "accounts-receivable" && <AccountsReceivable setPage={setPage} />}
+          {financePages.includes(page) &&
+            page !== "accounts-payable" &&
+            page !== "accounts-receivable" && (
+              <Finance activePage={page} setPage={setPage} />
+            )}
           {purchasePages.includes(page) && (
             <Purchases activePage={page} setPage={setPage} />
           )}

@@ -5620,6 +5620,117 @@ def delete_payable(
     return {"message": "Conta removida"}
 
 
+# =========================================================================
+# Contas a Receber: painel de "saques/renda" agregando TODAS as plataformas
+# (Shopee, Mercado Livre, Amazon, Shein, TikTok, Temu) no mesmo formato da
+# "Minha Renda" da Shopee: saldo a liberar, liberado e total ao longo do tempo.
+# Alimentado por MarketplaceOrder + Revenue (preenchidos na sincronizacao).
+# =========================================================================
+
+def _receivable_status(raw: str):
+    s = str(raw or "").strip().lower()
+    if any(k in s for k in ("complet", "deliver", "paid", "released", "entreg", "concl", "sucesso", "transfer")):
+        return "released"
+    return "pending"
+
+
+@app.get("/finance/receivables")
+def list_receivables(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    rows = []
+    seen = set()
+
+    for order in db.query(models.MarketplaceOrder).order_by(models.MarketplaceOrder.id.desc()).all():
+        rows.append(
+            {
+                "order_id": order.order_id,
+                "marketplace": order.marketplace or order.provider or "Loja",
+                "value": float(order.total or 0),
+                "status": _receivable_status(order.status),
+                "raw_status": order.status or "",
+                "date": (order.order_date or "")[:10],
+                "buyer": order.buyer_name or "",
+            }
+        )
+        seen.add(f"{order.provider}:{order.order_id}")
+
+    for rev in (
+        db.query(models.Revenue)
+        .filter(models.Revenue.category == "Venda")
+        .order_by(models.Revenue.id.desc())
+        .all()
+    ):
+        ext = rev.external_id or ""
+        if ext and ext in seen:
+            continue
+        rows.append(
+            {
+                "order_id": ext.split(":")[-1] if ext else str(rev.id),
+                "marketplace": rev.marketplace or "Loja",
+                "value": float(rev.value or 0),
+                "status": "released",
+                "raw_status": "released",
+                "date": rev.created_at.strftime("%Y-%m-%d") if rev.created_at else "",
+                "buyer": "",
+            }
+        )
+
+    today = datetime.utcnow().date()
+    week_ago = today - timedelta(days=7)
+    month_start = today.replace(day=1)
+    pending_total = released_total = released_week = released_month = 0.0
+    by_market = {}
+    months = {}
+
+    for row in rows:
+        label = row["marketplace"]
+        entry = by_market.setdefault(label, {"marketplace": label, "pending": 0.0, "released": 0.0, "orders": 0})
+        entry["orders"] += 1
+
+        if row["status"] == "pending":
+            pending_total += row["value"]
+            entry["pending"] += row["value"]
+        else:
+            released_total += row["value"]
+            entry["released"] += row["value"]
+
+            parsed = None
+            try:
+                parsed = datetime.strptime(row["date"], "%Y-%m-%d").date()
+            except (ValueError, TypeError):
+                parsed = None
+
+            if parsed:
+                if parsed >= week_ago:
+                    released_week += row["value"]
+                if parsed >= month_start:
+                    released_month += row["value"]
+                key = parsed.strftime("%Y-%m")
+                months[key] = months.get(key, 0.0) + row["value"]
+
+    return {
+        "pending_total": round(pending_total, 2),
+        "released_total": round(released_total, 2),
+        "released_week": round(released_week, 2),
+        "released_month": round(released_month, 2),
+        "by_marketplace": [
+            {
+                "marketplace": v["marketplace"],
+                "pending": round(v["pending"], 2),
+                "released": round(v["released"], 2),
+                "orders": v["orders"],
+            }
+            for v in sorted(by_market.values(), key=lambda x: x["released"] + x["pending"], reverse=True)
+        ],
+        "withdrawals": [
+            {"period": k, "amount": round(v, 2)} for k, v in sorted(months.items())
+        ],
+        "orders": rows[:300],
+    }
+
+
 @app.post("/products")
 def create_product(
     product: schemas.ProductCreate,
