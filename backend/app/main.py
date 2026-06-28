@@ -18,6 +18,7 @@ import os
 import re
 import secrets
 import smtplib
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -1214,7 +1215,7 @@ def shopee_request(
     url = resolve_shopee_url(url_or_path, config)
     parsed = urllib.parse.urlparse(url)
     path = parsed.path or "/"
-    timestamp = str(int(datetime.utcnow().timestamp()))
+    timestamp = str(int(time.time()))
     sign = build_shopee_signature(
         config["partner_id"],
         config["partner_key"],
@@ -1440,7 +1441,7 @@ def serialize_shopee_status(db: Session):
 
 def build_shopee_authorization_url(config: dict, state: str):
     auth_url = config["auth_url"]
-    timestamp = str(int(datetime.utcnow().timestamp()))
+    timestamp = str(int(time.time()))
     parsed = urllib.parse.urlparse(auth_url)
     path = parsed.path or "/"
     sign = build_shopee_signature(config["partner_id"], config["partner_key"], path, timestamp)
