@@ -27,7 +27,7 @@ from email.message import EmailMessage
 from zipfile import ZipFile
 from xml.etree import ElementTree as ET
 from pydantic import BaseModel, Field
-from fastapi import UploadFile, File, Body
+from fastapi import UploadFile, File, Body, Form
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from openai import OpenAI
 from app.models import Product
@@ -35,6 +35,7 @@ from app.models import Product
 from .database import (
     Base,
     engine,
+    SessionLocal,
     ensure_product_columns,
     ensure_fiscal_invoice_columns,
     ensure_revenue_columns,
@@ -5180,6 +5181,443 @@ def account_notifications_update(
         "emails_sent": emails_sent,
         "email_error": email_error,
     }
+
+
+# =========================================================================
+# Contas a Pagar: vencimento, lembrete por e-mail (3/2/1/0 dias antes e no
+# dia), boleto (upload de imagem com leitura por IA + linha digitavel) e
+# categorizacao por tipo (fixa | variavel | boleto, exibidos por cor).
+# =========================================================================
+
+PAYABLE_REMINDER_OFFSETS = [3, 2, 1, 0]
+
+
+def normalize_payable_category(value):
+    cleaned = re.sub(r"[^a-z]", "", str(value or "").lower())
+    if cleaned in {"variavel", "varivel", "variable"}:
+        return "variavel"
+    if cleaned == "boleto":
+        return "boleto"
+    return "fixa"
+
+
+def serialize_payable(payable: models.AccountPayable):
+    try:
+        sent = json.loads(payable.reminders_sent or "[]")
+    except (TypeError, ValueError):
+        sent = []
+
+    return {
+        "id": payable.id,
+        "description": payable.description,
+        "party": payable.party,
+        "category": payable.category,
+        "value": payable.value,
+        "due_date": payable.due_date,
+        "status": payable.status,
+        "reminder_enabled": bool(payable.reminder_enabled),
+        "reminders_sent": sent,
+        "boleto_line": payable.boleto_line,
+        "source": payable.source,
+        "created_at": payable.created_at.isoformat() if payable.created_at else None,
+        "updated_at": payable.updated_at.isoformat() if payable.updated_at else None,
+    }
+
+
+def parse_boleto_line(raw: str):
+    """Extrai valor e vencimento da linha digitavel do boleto (deterministico)."""
+    digits = re.sub(r"\D", "", raw or "")
+    result = {"value": 0.0, "due_date": "", "line": digits, "parsed": False}
+
+    if len(digits) == 47:
+        try:
+            result["value"] = round(int(digits[37:47]) / 100.0, 2)
+        except ValueError:
+            pass
+        try:
+            fator = int(digits[33:37])
+            if fator > 0:
+                due = datetime(1997, 10, 7) + timedelta(days=fator)
+                if due < datetime(2020, 1, 1):
+                    due = due + timedelta(days=9000)  # rollover do fator (2025)
+                result["due_date"] = due.strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+        result["parsed"] = True
+    elif len(digits) == 48:
+        # conta de concessionaria (arrecadacao)
+        try:
+            result["value"] = round(int(digits[4:15]) / 100.0, 2)
+            result["parsed"] = True
+        except ValueError:
+            pass
+
+    return result
+
+
+def extract_boleto_via_ai(image_bytes: bytes, content_type: str):
+    """Le um boleto/conta a partir da imagem usando IA (se OPENAI configurado)."""
+    if not openai_client:
+        return None
+
+    encoded = base64.b64encode(image_bytes).decode("ascii")
+    data_url = f"data:{content_type or 'image/png'};base64,{encoded}"
+
+    try:
+        completion = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "Leia este boleto/conta brasileira e responda APENAS um JSON com as chaves "
+                                "recipient (nome do beneficiario/cedente), due_date (vencimento em YYYY-MM-DD) "
+                                "e value (valor total em reais, numero). Se nao encontrar, use string vazia ou 0."
+                            ),
+                        },
+                        {"type": "image_url", "image_url": {"url": data_url}},
+                    ],
+                }
+            ],
+            max_tokens=300,
+        )
+        text = completion.choices[0].message.content or ""
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+
+        if not match:
+            return None
+
+        data = json.loads(match.group(0))
+        return {
+            "recipient": str(data.get("recipient") or "").strip(),
+            "due_date": str(data.get("due_date") or "").strip(),
+            "value": parse_number(data.get("value"), 0),
+        }
+    except Exception:
+        return None
+
+
+def send_payable_reminder_email(db: Session, payable: models.AccountPayable, offset: int):
+    user = db.query(models.User).filter(models.User.id == payable.user_id).first()
+
+    if not user or not user.email:
+        return False
+
+    when = "vence HOJE" if offset == 0 else f"vence em {offset} dia(s)"
+    body = "\n".join(
+        [
+            "NEXT ERP - Lembrete de conta a pagar",
+            "",
+            f'A conta "{payable.description}" {when}.',
+            f"Beneficiario: {payable.party or '-'}",
+            f"Vencimento: {payable.due_date or '-'}",
+            f"Valor: R$ {payable.value:.2f}",
+            "",
+            "Acesse o NEXT ERP em Financeiro > Contas a Pagar.",
+        ]
+    )
+
+    try:
+        send_account_email(user.email, f"NEXT ERP - Conta {when}: {payable.description}", body)
+        return True
+    except HTTPException:
+        return False
+
+
+def run_payable_reminders(db: Session):
+    today = datetime.utcnow().date()
+    payables = (
+        db.query(models.AccountPayable)
+        .filter(
+            models.AccountPayable.reminder_enabled == True,  # noqa: E712
+            models.AccountPayable.status != "pago",
+        )
+        .all()
+    )
+    sent = 0
+
+    for payable in payables:
+        if not payable.due_date:
+            continue
+
+        try:
+            due = datetime.strptime(payable.due_date, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+
+        days_left = (due - today).days
+
+        if days_left not in PAYABLE_REMINDER_OFFSETS:
+            continue
+
+        try:
+            already = json.loads(payable.reminders_sent or "[]")
+        except (TypeError, ValueError):
+            already = []
+
+        if days_left in already:
+            continue
+
+        if send_payable_reminder_email(db, payable, days_left):
+            already.append(days_left)
+            payable.reminders_sent = json.dumps(already)
+            payable.updated_at = datetime.utcnow()
+            sent += 1
+
+    db.commit()
+    return sent
+
+
+def activate_payable_reminder(db: Session, payable: models.AccountPayable):
+    user = db.query(models.User).filter(models.User.id == payable.user_id).first()
+
+    if not user or not user.email:
+        return "Lembrete ativado (sem e-mail cadastrado para enviar)."
+
+    body = "\n".join(
+        [
+            "NEXT ERP - Lembrete ativado",
+            "",
+            f'Voce ativou o lembrete da conta "{payable.description}".',
+            f"Vencimento: {payable.due_date or 'sem data'} | Valor: R$ {payable.value:.2f}",
+            "Voce sera avisado 3, 2 e 1 dia antes e no dia do vencimento.",
+        ]
+    )
+
+    try:
+        send_account_email(user.email, f"NEXT ERP - Lembrete ativado: {payable.description}", body)
+    except HTTPException as exc:
+        return f"Lembrete ativado, mas o e-mail falhou: {exc.detail}"
+
+    run_payable_reminders(db)
+    return f"Lembrete ativado e confirmacao enviada para {user.email}."
+
+
+_payable_scheduler_started = False
+
+
+def start_payable_scheduler():
+    global _payable_scheduler_started
+
+    if _payable_scheduler_started:
+        return
+
+    _payable_scheduler_started = True
+    import threading
+
+    def loop():
+        while True:
+            try:
+                session = SessionLocal()
+                try:
+                    run_payable_reminders(session)
+                finally:
+                    session.close()
+            except Exception:
+                pass
+
+            time.sleep(6 * 60 * 60)
+
+    threading.Thread(target=loop, daemon=True).start()
+
+
+@app.on_event("startup")
+def _startup_payable_scheduler():
+    start_payable_scheduler()
+
+
+@app.get("/finance/payables")
+def list_payables(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    items = (
+        db.query(models.AccountPayable)
+        .filter(models.AccountPayable.user_id == user.id)
+        .order_by(models.AccountPayable.id.desc())
+        .all()
+    )
+    return [serialize_payable(item) for item in items]
+
+
+@app.post("/finance/payables")
+def create_payable(
+    payload: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    data = payload if isinstance(payload, dict) else {}
+    payable = models.AccountPayable(
+        user_id=user.id,
+        description=str(data.get("description") or "").strip(),
+        party=str(data.get("party") or "").strip(),
+        category=normalize_payable_category(data.get("category")),
+        value=parse_number(data.get("value"), 0),
+        due_date=str(data.get("due_date") or "").strip(),
+        status="pago" if data.get("status") == "pago" else "nao_pago",
+        reminder_enabled=bool(data.get("reminder_enabled")),
+        boleto_line=str(data.get("boleto_line") or "").strip(),
+        source=str(data.get("source") or "manual").strip() or "manual",
+    )
+    db.add(payable)
+    db.commit()
+    db.refresh(payable)
+
+    message = activate_payable_reminder(db, payable) if payable.reminder_enabled else ""
+    return {"payable": serialize_payable(payable), "message": message}
+
+
+@app.post("/finance/payables/boleto")
+def create_payable_from_boleto(
+    boleto_line: str = Form(""),
+    description: str = Form(""),
+    reminder_enabled: str = Form("false"),
+    file: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    recipient = ""
+    due_date = ""
+    value = 0.0
+    line_digits = re.sub(r"\D", "", boleto_line or "")
+    ai = None
+
+    if file is not None:
+        content = file.file.read()
+
+        if content:
+            ai = extract_boleto_via_ai(content, file.content_type)
+
+            if ai:
+                recipient = ai.get("recipient") or recipient
+                due_date = ai.get("due_date") or due_date
+                value = ai.get("value") or value
+
+    if line_digits:
+        parsed = parse_boleto_line(line_digits)
+        value = parsed["value"] or value
+        due_date = parsed["due_date"] or due_date
+
+    if not value and not due_date and not recipient:
+        raise HTTPException(
+            status_code=422,
+            detail="Nao foi possivel identificar o boleto. Informe a linha digitavel ou os dados manualmente.",
+        )
+
+    payable = models.AccountPayable(
+        user_id=user.id,
+        description=(description or recipient or "Boleto").strip(),
+        party=recipient.strip(),
+        category="boleto",
+        value=value,
+        due_date=due_date,
+        status="nao_pago",
+        reminder_enabled=str(reminder_enabled).lower() in {"true", "1", "on", "yes"},
+        boleto_line=line_digits,
+        source="boleto",
+    )
+    db.add(payable)
+    db.commit()
+    db.refresh(payable)
+
+    message = activate_payable_reminder(db, payable) if payable.reminder_enabled else ""
+    return {
+        "payable": serialize_payable(payable),
+        "ai_used": bool(ai),
+        "message": message,
+    }
+
+
+@app.post("/finance/payables/run-reminders")
+def run_payables_reminders_now(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    return {"sent": run_payable_reminders(db)}
+
+
+@app.put("/finance/payables/{payable_id}")
+def update_payable(
+    payable_id: int,
+    payload: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    payable = (
+        db.query(models.AccountPayable)
+        .filter(models.AccountPayable.id == payable_id, models.AccountPayable.user_id == user.id)
+        .first()
+    )
+
+    if not payable:
+        raise HTTPException(status_code=404, detail="Conta a pagar nao encontrada")
+
+    data = payload if isinstance(payload, dict) else {}
+
+    for field in ("description", "party", "due_date", "boleto_line"):
+        if field in data:
+            setattr(payable, field, str(data[field] or "").strip())
+
+    if "category" in data:
+        payable.category = normalize_payable_category(data["category"])
+    if "value" in data:
+        payable.value = parse_number(data["value"], payable.value)
+    if "status" in data:
+        payable.status = "pago" if data["status"] == "pago" else "nao_pago"
+    if "reminder_enabled" in data:
+        payable.reminder_enabled = bool(data["reminder_enabled"])
+
+    payable.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(payable)
+    return serialize_payable(payable)
+
+
+@app.post("/finance/payables/{payable_id}/reminder")
+def trigger_payable_reminder(
+    payable_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    payable = (
+        db.query(models.AccountPayable)
+        .filter(models.AccountPayable.id == payable_id, models.AccountPayable.user_id == user.id)
+        .first()
+    )
+
+    if not payable:
+        raise HTTPException(status_code=404, detail="Conta a pagar nao encontrada")
+
+    payable.reminder_enabled = True
+    payable.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(payable)
+
+    message = activate_payable_reminder(db, payable)
+    return {"payable": serialize_payable(payable), "message": message}
+
+
+@app.delete("/finance/payables/{payable_id}")
+def delete_payable(
+    payable_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    payable = (
+        db.query(models.AccountPayable)
+        .filter(models.AccountPayable.id == payable_id, models.AccountPayable.user_id == user.id)
+        .first()
+    )
+
+    if not payable:
+        raise HTTPException(status_code=404, detail="Conta a pagar nao encontrada")
+
+    db.delete(payable)
+    db.commit()
+    return {"message": "Conta removida"}
 
 
 @app.post("/products")

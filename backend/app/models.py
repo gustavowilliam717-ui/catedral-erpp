@@ -226,6 +226,27 @@ class MarketplaceOrder(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 
+class AccountPayable(Base):
+    """Conta a pagar com vencimento, lembrete por e-mail e suporte a boleto."""
+
+    __tablename__ = "accounts_payable"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True, default=0)
+    description = Column(String, default="")
+    party = Column(String, default="")  # beneficiario / fornecedor
+    category = Column(String, default="fixa")  # fixa | variavel | boleto
+    value = Column(Float, default=0)
+    due_date = Column(String, default="")  # YYYY-MM-DD
+    status = Column(String, default="nao_pago")  # nao_pago | pago
+    reminder_enabled = Column(Boolean, default=False)
+    reminders_sent = Column(Text, default="[]")  # offsets ja enviados, ex: [3,2,1,0]
+    boleto_line = Column(String, default="")
+    source = Column(String, default="manual")  # manual | boleto
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
 class FiscalInvoice(Base):
     __tablename__ = "fiscal_invoices"
 

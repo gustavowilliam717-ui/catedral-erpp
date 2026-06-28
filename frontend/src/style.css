@@ -4851,6 +4851,67 @@ button {
   }
 }
 
+/* Contas a Pagar */
+.payable-card.fixa strong { color: #1d4ed8; }
+.payable-card.variavel strong { color: #b45309; }
+.payable-card.boleto strong { color: #7c3aed; }
+.payable-chip {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.payable-chip.fixa { background: #e7efff; color: #1d4ed8; }
+.payable-chip.variavel { background: #fdf0dc; color: #b45309; }
+.payable-chip.boleto { background: #f1e8ff; color: #7c3aed; }
+.payable-row { border-left: 4px solid transparent; }
+.payable-row.fixa { border-left-color: #2563eb; }
+.payable-row.variavel { border-left-color: #d97706; }
+.payable-row.boleto { border-left-color: #7c3aed; }
+.payable-table td span { display: inline-block; }
+.payable-table td strong + span { color: var(--muted); font-size: 11px; }
+.payable-due {
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.payable-due.overdue { background: #fde2e1; color: #b91c1c; }
+.payable-due.soon { background: #fef3c7; color: #92400e; }
+.payable-bell { margin-left: 6px; }
+.payable-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.payable-field-label,
+.payable-check {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.payable-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.payable-boleto-form {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+.payable-hint {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .sac-command-card {
   display: flex;
   align-items: center;
