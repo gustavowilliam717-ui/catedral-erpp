@@ -1,4 +1,110 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import API from "../services/api";
+import { logError } from "../utils/logger";
+
+function useNotificationPrefs() {
+  const [prefs, setPrefs] = useState({ notifications: {}, security: {} });
+  const [catalog, setCatalog] = useState([]);
+  const [securityCatalog, setSecurityCatalog] = useState([]);
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    API.get("/account/notifications")
+      .then((response) => {
+        if (!active) return;
+        const data = response.data || {};
+        setCatalog(data.catalog || []);
+        setSecurityCatalog(data.security_catalog || []);
+        setEmail(data.email || "");
+        setPrefs({
+          notifications: data.notifications || {},
+          security: data.security || {},
+        });
+      })
+      .catch((error) => logError(error));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function persist(next) {
+    setSaving(true);
+    try {
+      const response = await API.put("/account/notifications", next);
+      const data = response.data || {};
+      setPrefs({
+        notifications: data.notifications || {},
+        security: data.security || {},
+      });
+
+      if (data.activated && data.activated.length) {
+        if (data.emails_sent > 0) {
+          setMessage(`Aviso ativado e enviado para ${data.email}.`);
+        } else if (data.email_error) {
+          setMessage(`Ativado, mas o e-mail falhou: ${data.email_error}`);
+        } else {
+          setMessage("Aviso ativado.");
+        }
+      } else {
+        setMessage("Preferencias salvas.");
+      }
+    } catch (error) {
+      logError(error);
+      setMessage("Nao foi possivel salvar as preferencias.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toggleNotification(key) {
+    const next = {
+      notifications: { ...prefs.notifications, [key]: !prefs.notifications[key] },
+      security: prefs.security,
+    };
+    setPrefs(next);
+    persist(next);
+  }
+
+  function toggleSecurity(key) {
+    const current = prefs.security[key] || {};
+    const next = {
+      notifications: prefs.notifications,
+      security: { ...prefs.security, [key]: { ...current, enabled: !current.enabled } },
+    };
+    setPrefs(next);
+    persist(next);
+  }
+
+  function setSecurityValue(key, value) {
+    setPrefs((current) => ({
+      ...current,
+      security: {
+        ...current.security,
+        [key]: { ...(current.security[key] || {}), value },
+      },
+    }));
+  }
+
+  function saveSecurityValue() {
+    persist({ notifications: prefs.notifications, security: prefs.security });
+  }
+
+  return {
+    prefs,
+    catalog,
+    securityCatalog,
+    email,
+    message,
+    saving,
+    toggleNotification,
+    toggleSecurity,
+    setSecurityValue,
+    saveSecurityValue,
+  };
+}
 
 const sidebarGroups = [
   {
@@ -89,6 +195,15 @@ function AccountSidebar({ activePage, setPage }) {
 }
 
 function ProfileSettings({ user }) {
+  const { prefs, catalog, email, message, toggleNotification } = useNotificationPrefs();
+  const rows = catalog.length
+    ? catalog
+    : notificationRows.map(([title, description], index) => ({
+        key: `row-${index}`,
+        title,
+        description,
+      }));
+
   return (
     <>
       <section className="settings-tool-card account-card">
@@ -112,22 +227,30 @@ function ProfileSettings({ user }) {
 
       <section className="settings-tool-card account-card">
         <h2>Notificacao</h2>
+        <p className="account-notification-hint">
+          Ao ativar um aviso, a NEXT envia as atividades para o seu e-mail
+          cadastrado{email ? ` (${email})` : ""}.
+        </p>
+        {message && <strong className="bulk-message">{message}</strong>}
         <table className="account-notification-table">
           <thead>
             <tr>
               <th>Tipo de Notificacao</th>
-              <th>Push</th>
+              <th>E-mail</th>
             </tr>
           </thead>
           <tbody>
-            {notificationRows.map(([title, description]) => (
-              <tr key={title}>
+            {rows.map((row) => (
+              <tr key={row.key}>
                 <td>
-                  <strong>{title}</strong>
-                  <span>{description}</span>
+                  <strong>{row.title}</strong>
+                  <span>{row.description}</span>
                 </td>
                 <td>
-                  <MiniToggle />
+                  <MiniToggle
+                    checked={Boolean(prefs.notifications[row.key])}
+                    onClick={() => toggleNotification(row.key)}
+                  />
                 </td>
               </tr>
             ))}
@@ -183,6 +306,15 @@ function LanguageSettings() {
 
 function SecuritySettings() {
   const [uniqueLogin, setUniqueLogin] = useState(false);
+  const {
+    prefs,
+    securityCatalog,
+    email,
+    message,
+    toggleSecurity,
+    setSecurityValue,
+    saveSecurityValue,
+  } = useNotificationPrefs();
 
   return (
     <>
@@ -203,25 +335,39 @@ function SecuritySettings() {
         <h2>Estrategia de Seguranca</h2>
         <div className="security-rule-list">
           <p>
-            Quando o sistema detectar comportamentos perigosos, ele enviara um
-            codigo de verificacao para o email principal antes de liberar a
-            operacao.
+            Quando o sistema detectar os comportamentos abaixo, ele enviara o
+            aviso para o seu e-mail cadastrado{email ? ` (${email})` : ""} antes
+            de liberar a operacao.
           </p>
-          <SecurityRule text="Excluir em massa mais de" suffix="anuncios ativos" />
-          <SecurityRule text="Reducao de preco ultrapassar" suffix="% OFF" />
-          <SecurityRule text="Percentual de desconto exceder" suffix="% OFF" />
+          {message && <strong className="bulk-message">{message}</strong>}
+          {securityCatalog.map((item) => (
+            <SecurityRule
+              key={item.key}
+              text={item.title}
+              suffix={item.suffix}
+              checked={Boolean((prefs.security[item.key] || {}).enabled)}
+              value={(prefs.security[item.key] || {}).value || ""}
+              onToggle={() => toggleSecurity(item.key)}
+              onChange={(value) => setSecurityValue(item.key, value)}
+              onCommit={saveSecurityValue}
+            />
+          ))}
         </div>
       </section>
     </>
   );
 }
 
-function SecurityRule({ text, suffix }) {
+function SecurityRule({ text, suffix, checked, value, onToggle, onChange, onCommit }) {
   return (
     <div className="security-rule-row">
-      <MiniToggle />
+      <MiniToggle checked={checked} onClick={onToggle} />
       <span>{text}</span>
-      <input />
+      <input
+        value={value}
+        onChange={(event) => onChange?.(event.target.value)}
+        onBlur={() => onCommit?.()}
+      />
       <b>{suffix}</b>
     </div>
   );

@@ -4417,9 +4417,29 @@ def generic_connector_sync(
     db: Session = Depends(get_db),
     user: models.User = Depends(require_user),
 ):
-    get_connector_meta(provider)
+    meta = get_connector_meta(provider)
     products_result = sync_generic_products(provider, db)
     orders_result = sync_generic_orders(provider, db)
+
+    novos = int(orders_result.get("created") or 0)
+    if novos:
+        notify_user(
+            db,
+            user,
+            "novos_pedidos",
+            f"NEXT ERP - {novos} novo(s) pedido(s) em {meta['label']}",
+            "\n".join(
+                [
+                    "NEXT ERP",
+                    "",
+                    f"Voce recebeu {novos} novo(s) pedido(s) na loja {meta['label']}.",
+                    "Acesse o ERP para processar.",
+                    "",
+                    "Equipe NEXT ERP",
+                ]
+            ),
+        )
+
     return {"products": products_result, "orders": orders_result}
 
 
@@ -4983,6 +5003,183 @@ def module_record_delete(
     db.delete(record)
     db.commit()
     return {"message": "Registro removido"}
+
+
+# =========================================================================
+# Notificacoes por e-mail (Gmail do cliente)
+# Quando o cliente ativa um aviso (Perfil > Notificacao ou Seguranca >
+# Estrategia de Seguranca), a NEXT envia os avisos para o e-mail cadastrado.
+# Reaproveita o envio de e-mail (Resend/SMTP) ja usado nos codigos de login.
+# =========================================================================
+
+def send_account_email(email: str, subject: str, body: str):
+    provider = get_email_provider()
+    resend_settings = get_resend_settings()
+
+    if provider == "resend" or (provider == "auto" and resend_settings["configured"]):
+        return send_resend_email(email, subject, body, resend_settings)
+
+    return send_smtp_email(email, subject, body)
+
+
+NOTIFICATION_CATALOG = [
+    {"key": "novos_pedidos", "title": "Novos pedidos da plataforma", "description": "Notificacoes para voce quando tiver novos pedidos"},
+    {"key": "perguntas", "title": "Perguntas Mercado", "description": "Push de notificacoes quando as perguntas sao recebidas"},
+    {"key": "mensagens_posvenda", "title": "Mensagens Pos Venda Mercado", "description": "Aviso quando houver novas mensagens de pos-venda"},
+    {"key": "reclamacoes", "title": "Reclamacoes do Mercado", "description": "Notificacoes para novas reclamacoes"},
+    {"key": "opinioes_ml", "title": "Opinioes do ML", "description": "Enviar quando houver opinioes negativas de 1 a 3 estrelas"},
+    {"key": "opinioes_shopee", "title": "Opinioes da Shopee", "description": "Enviar quando houver opinioes negativas de 1 a 3 estrelas"},
+]
+
+SECURITY_CATALOG = [
+    {"key": "mass_delete", "title": "Excluir em massa mais de", "suffix": "anuncios ativos", "description": "Alerta quando houver exclusao em massa de anuncios acima do limite definido"},
+    {"key": "price_drop", "title": "Reducao de preco ultrapassar", "suffix": "% OFF", "description": "Alerta quando uma reducao de preco ultrapassar o percentual definido"},
+    {"key": "discount_exceed", "title": "Percentual de desconto exceder", "suffix": "% OFF", "description": "Alerta quando um desconto exceder o percentual definido"},
+]
+
+NOTIFICATION_BY_KEY = {item["key"]: item for item in NOTIFICATION_CATALOG}
+SECURITY_BY_KEY = {item["key"]: item for item in SECURITY_CATALOG}
+
+
+def get_notification_prefs(db: Session, user_id: int):
+    raw = get_setting_value(db, f"notification_prefs:{user_id}", "", group="notifications")
+
+    try:
+        data = json.loads(raw) if raw else {}
+    except (TypeError, ValueError):
+        data = {}
+
+    if not isinstance(data, dict):
+        data = {}
+
+    notifications = data.get("notifications") if isinstance(data.get("notifications"), dict) else {}
+    security = data.get("security") if isinstance(data.get("security"), dict) else {}
+    return {"notifications": notifications, "security": security}
+
+
+def save_notification_prefs(db: Session, user_id: int, prefs: dict):
+    upsert_setting_value(
+        db,
+        f"notification_prefs:{user_id}",
+        json.dumps(prefs, ensure_ascii=False),
+        group="notifications",
+    )
+    db.commit()
+
+
+def send_notification_activation_email(user: models.User, activated_items: list):
+    greeting = f"Ola {user.name}," if user.name else "Ola,"
+    lines = [
+        "NEXT ERP",
+        "",
+        greeting,
+        "",
+        "Voce ativou os seguintes avisos e passara a recebe-los neste e-mail:",
+        "",
+    ]
+
+    for item in activated_items:
+        lines.append(f"- {item['title']}: {item['description']}")
+
+    lines += [
+        "",
+        "Voce pode ativar ou desativar a qualquer momento em Configuracoes da Conta.",
+        "",
+        "Equipe NEXT ERP",
+    ]
+    body = "\n".join(lines)
+    return send_account_email(user.email, "NEXT ERP - Avisos ativados", body)
+
+
+def notify_user(db: Session, user: models.User, notification_key: str, subject: str, message: str):
+    """Envia um aviso de evento real para o e-mail do cliente, se ele ativou
+    aquele tipo de notificacao. Use ao detectar novos pedidos, perguntas, etc."""
+    if not user or not user.email:
+        return False
+
+    prefs = get_notification_prefs(db, user.id)
+
+    if not prefs["notifications"].get(notification_key):
+        return False
+
+    try:
+        return send_account_email(user.email, subject, message)
+    except HTTPException:
+        return False
+
+
+@app.get("/account/notifications")
+def account_notifications_get(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    prefs = get_notification_prefs(db, user.id)
+    return {
+        "email": user.email,
+        "catalog": NOTIFICATION_CATALOG,
+        "security_catalog": SECURITY_CATALOG,
+        "notifications": prefs["notifications"],
+        "security": prefs["security"],
+    }
+
+
+@app.put("/account/notifications")
+def account_notifications_update(
+    payload: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    data = payload if isinstance(payload, dict) else {}
+    old = get_notification_prefs(db, user.id)
+
+    new_notifications = {
+        item["key"]: bool((data.get("notifications") or {}).get(item["key"]))
+        for item in NOTIFICATION_CATALOG
+    }
+
+    incoming_security = data.get("security") if isinstance(data.get("security"), dict) else {}
+    new_security = {}
+    for item in SECURITY_CATALOG:
+        entry = incoming_security.get(item["key"]) or {}
+        new_security[item["key"]] = {
+            "enabled": bool(entry.get("enabled")),
+            "value": str(entry.get("value") or ""),
+        }
+
+    activated = []
+    for item in NOTIFICATION_CATALOG:
+        if new_notifications[item["key"]] and not old["notifications"].get(item["key"]):
+            activated.append(item)
+    for item in SECURITY_CATALOG:
+        was = bool((old["security"].get(item["key"]) or {}).get("enabled"))
+        if new_security[item["key"]]["enabled"] and not was:
+            activated.append(item)
+
+    save_notification_prefs(db, user.id, {"notifications": new_notifications, "security": new_security})
+
+    emails_sent = 0
+    email_error = ""
+
+    if activated and user.email:
+        try:
+            result = send_notification_activation_email(user, activated)
+            emails_sent = len(activated) if result is not False else 0
+
+            if result is False:
+                email_error = "E-mail nao configurado no servidor (modo dev)."
+        except HTTPException as exc:
+            email_error = str(exc.detail)
+
+    return {
+        "email": user.email,
+        "catalog": NOTIFICATION_CATALOG,
+        "security_catalog": SECURITY_CATALOG,
+        "notifications": new_notifications,
+        "security": new_security,
+        "activated": [item["key"] for item in activated],
+        "emails_sent": emails_sent,
+        "email_error": email_error,
+    }
 
 
 @app.post("/products")
