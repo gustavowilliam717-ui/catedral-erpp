@@ -85,16 +85,53 @@ def ai_vision_model():
     return os.getenv("AI_VISION_MODEL", "").strip() or _ai_config()["vision_model"]
 
 
+def _make_ai_client(api_key: str, provider: str):
+    """Cria um cliente de IA (timeout curto e sem retries para nao travar o
+    servidor esperando o provedor — evita erro 520/gateway)."""
+    cfg = AI_PROVIDERS.get((provider or "openai").strip().lower(), AI_PROVIDERS["openai"])
+    if cfg["base_url"]:
+        return OpenAI(api_key=api_key, base_url=cfg["base_url"], timeout=30, max_retries=1)
+    return OpenAI(api_key=api_key, timeout=30, max_retries=1)
+
+
 def _build_ai_client():
     if not AI_API_KEY:
         return None
-    cfg = _ai_config()
-    if cfg["base_url"]:
-        return OpenAI(api_key=AI_API_KEY, base_url=cfg["base_url"])
-    return OpenAI(api_key=AI_API_KEY)
+    return _make_ai_client(AI_API_KEY, AI_PROVIDER)
 
 
 openai_client = _build_ai_client()
+
+
+def get_user_ai_settings(db, user_id: int):
+    raw = get_setting_value(db, f"ai_settings:{user_id}", "", group="ai_settings")
+    try:
+        data = json.loads(raw) if raw else {}
+    except (TypeError, ValueError):
+        data = {}
+    return data if isinstance(data, dict) else {}
+
+
+def resolve_ai_client(db, user):
+    """Se o cliente configurou IA avancada (chave propria), usa a chave dele;
+    senao, cai na IA gratis da plataforma. Retorna (client, chat_model, vision_model)."""
+    try:
+        settings = get_user_ai_settings(db, user.id) if user else {}
+    except Exception:
+        settings = {}
+
+    if settings.get("enabled") and settings.get("api_key"):
+        provider = (settings.get("provider") or "openai").strip().lower()
+        cfg = AI_PROVIDERS.get(provider, AI_PROVIDERS["openai"])
+        try:
+            client = _make_ai_client(settings["api_key"], provider)
+            chat = (settings.get("chat_model") or "").strip() or cfg["chat_model"]
+            vision = (settings.get("vision_model") or "").strip() or chat or cfg["vision_model"]
+            return client, chat, vision
+        except Exception:
+            pass
+
+    return openai_client, ai_chat_model(), ai_vision_model()
 security = HTTPBearer(auto_error=False)
 
 # Modo de desenvolvimento: quando ativo e sem SMTP/SMS configurados,
@@ -2758,13 +2795,19 @@ def auth_logout(
 
 
 @app.post("/chat")
-def chat(request: ChatRequest, user: models.User = Depends(require_user)):
-    if not openai_client:
-        raise HTTPException(status_code=500, detail="IA nao configurada. Defina AI_API_KEY (e AI_PROVIDER) no servidor.")
+def chat(
+    request: ChatRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    client, model, _ = resolve_ai_client(db, user)
+
+    if not client:
+        raise HTTPException(status_code=500, detail="IA nao configurada. Defina a chave de IA (gratis em Configuracoes da Conta).")
 
     try:
-        completion = openai_client.chat.completions.create(
-            model=ai_chat_model(),
+        completion = client.chat.completions.create(
+            model=model,
             messages=[
                 {"role": "system", "content": "Voce e um assistente inteligente da NEXT ERP, ajudando com informacoes sobre estoque, marketplace, precificacao e processos de vendas."},
                 {"role": "user", "content": request.message},
@@ -2775,11 +2818,19 @@ def chat(request: ChatRequest, user: models.User = Depends(require_user)):
 
         answer = (completion.choices[0].message.content or "").strip()
         return {"answer": answer}
-    except Exception:
-        raise HTTPException(
-            status_code=502,
-            detail="Nao foi possivel obter resposta do assistente no momento.",
-        )
+    except Exception as exc:
+        detail = str(exc).lower()
+
+        if "quota" in detail or "429" in detail or "rate" in detail:
+            message = "Limite gratuito da IA atingido. Tente em instantes ou ative a IA avancada com sua propria chave."
+        elif "model" in detail and ("not found" in detail or "404" in detail or "does not exist" in detail):
+            message = "Modelo de IA indisponivel. Ajuste o modelo nas configuracoes de IA."
+        elif "api key" in detail or "401" in detail or "permission" in detail or "invalid" in detail:
+            message = "Chave de IA invalida. Verifique a configuracao."
+        else:
+            message = "Nao foi possivel obter resposta do assistente agora. Tente novamente."
+
+        raise HTTPException(status_code=502, detail=message)
 
 
 @app.get("/dashboard")
@@ -5170,6 +5221,56 @@ def notify_user(db: Session, user: models.User, notification_key: str, subject: 
         return False
 
 
+@app.get("/account/ai")
+def account_ai_get(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    settings = get_user_ai_settings(db, user.id)
+    key = settings.get("api_key") or ""
+    return {
+        "enabled": bool(settings.get("enabled")),
+        "provider": settings.get("provider") or "openai",
+        "chat_model": settings.get("chat_model") or "",
+        "vision_model": settings.get("vision_model") or "",
+        "key_configured": bool(key),
+        "key_hint": ("****" + key[-4:]) if len(key) >= 4 else ("****" if key else ""),
+        "providers": list(AI_PROVIDERS.keys()),
+    }
+
+
+@app.put("/account/ai")
+def account_ai_update(
+    payload: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    data = payload if isinstance(payload, dict) else {}
+    current = get_user_ai_settings(db, user.id)
+
+    provider = str(data.get("provider") or current.get("provider") or "openai").strip().lower()
+    if provider not in AI_PROVIDERS:
+        provider = "openai"
+
+    incoming_key = str(data.get("api_key") or "").strip()
+    new_settings = {
+        "enabled": bool(data.get("enabled")),
+        "provider": provider,
+        "chat_model": str(data.get("chat_model") or "").strip(),
+        "vision_model": str(data.get("vision_model") or "").strip(),
+        "api_key": incoming_key or (current.get("api_key") or ""),
+    }
+
+    upsert_setting_value(
+        db,
+        f"ai_settings:{user.id}",
+        json.dumps(new_settings, ensure_ascii=False),
+        group="ai_settings",
+    )
+    db.commit()
+    return account_ai_get(db, user)
+
+
 @app.get("/account/notifications")
 def account_notifications_get(
     db: Session = Depends(get_db),
@@ -5316,17 +5417,19 @@ def parse_boleto_line(raw: str):
     return result
 
 
-def extract_boleto_via_ai(image_bytes: bytes, content_type: str):
-    """Le um boleto/conta a partir da imagem usando IA (se OPENAI configurado)."""
-    if not openai_client:
+def extract_boleto_via_ai(image_bytes: bytes, content_type: str, client=None, model: str = ""):
+    """Le um boleto/conta a partir da imagem usando IA (cliente do usuario ou da plataforma)."""
+    client = client or openai_client
+
+    if not client:
         return None
 
     encoded = base64.b64encode(image_bytes).decode("ascii")
     data_url = f"data:{content_type or 'image/png'};base64,{encoded}"
 
     try:
-        completion = openai_client.chat.completions.create(
-            model=ai_vision_model(),
+        completion = client.chat.completions.create(
+            model=model or ai_vision_model(),
             messages=[
                 {
                     "role": "user",
@@ -5558,7 +5661,8 @@ def create_payable_from_boleto(
             raise HTTPException(status_code=413, detail="Imagem do boleto muito grande (limite de 8MB).")
 
         if content:
-            ai = extract_boleto_via_ai(content, file.content_type)
+            ai_client, _, ai_vision = resolve_ai_client(db, user)
+            ai = extract_boleto_via_ai(content, file.content_type, ai_client, ai_vision)
 
             if ai:
                 recipient = ai.get("recipient") or recipient

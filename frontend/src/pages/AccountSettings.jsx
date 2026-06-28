@@ -149,6 +149,54 @@ const transactionRows = [
   ["UP2601281441304341049", "28/01/2026 11:41", "28/01/2026 11:42", "R$ 45,00", "1000 Pacote Adicional de Pedidos X 1", "PIX", "Sucesso"],
 ];
 
+function useAiSettings() {
+  const [data, setData] = useState({
+    enabled: false,
+    provider: "gemini",
+    chat_model: "",
+    key_configured: false,
+    key_hint: "",
+    providers: ["openai", "gemini", "groq"],
+  });
+  const [apiKey, setApiKey] = useState("");
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    API.get("/account/ai")
+      .then((response) => setData((current) => ({ ...current, ...(response.data || {}) })))
+      .catch((error) => logError(error));
+  }, []);
+
+  async function save(next) {
+    setSaving(true);
+    setMessage("");
+    try {
+      const body = {
+        enabled: next.enabled,
+        provider: next.provider,
+        chat_model: next.chat_model,
+      };
+      if (apiKey.trim()) body.api_key = apiKey.trim();
+      const response = await API.put("/account/ai", body);
+      setData((current) => ({ ...current, ...(response.data || {}) }));
+      setApiKey("");
+      setMessage(
+        next.enabled
+          ? "IA avancada ativada com sua chave."
+          : "Voltou para a IA gratis da plataforma."
+      );
+    } catch (error) {
+      logError(error);
+      setMessage("Nao foi possivel salvar as configuracoes de IA.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return { data, setData, apiKey, setApiKey, message, saving, save };
+}
+
 export default function AccountSettings({
   activePage = "account-profile",
   setPage,
@@ -199,6 +247,7 @@ function AccountSidebar({ activePage, setPage }) {
 
 function ProfileSettings({ user }) {
   const { prefs, catalog, email, message, toggleNotification } = useNotificationPrefs();
+  const ai = useAiSettings();
   const rows = catalog.length
     ? catalog
     : notificationRows.map(([title, description], index) => ({
@@ -259,6 +308,65 @@ function ProfileSettings({ user }) {
             ))}
           </tbody>
         </table>
+      </section>
+
+      <section className="settings-tool-card account-card">
+        <h2>Inteligencia Artificial</h2>
+        <p className="account-notification-hint">
+          O chat e o leitor de boleto usam a IA gratis da plataforma por padrao.
+          Para um modelo mais avancado, ative e use sua propria chave de API —
+          voce paga apenas o seu uso, direto no provedor.
+        </p>
+        {ai.message && <strong className="bulk-message">{ai.message}</strong>}
+
+        <div className="account-info-row">
+          <span>Usar IA avancada (minha propria chave)</span>
+          <MiniToggle
+            checked={ai.data.enabled}
+            onClick={() => ai.setData({ ...ai.data, enabled: !ai.data.enabled })}
+          />
+        </div>
+
+        {ai.data.enabled && (
+          <div className="account-form-grid">
+            <label>
+              Provedor
+              <select
+                value={ai.data.provider}
+                onChange={(event) => ai.setData({ ...ai.data, provider: event.target.value })}
+              >
+                <option value="openai">OpenAI (GPT)</option>
+                <option value="gemini">Google Gemini</option>
+                <option value="groq">Groq (Llama)</option>
+              </select>
+            </label>
+            <label>
+              Chave de API
+              <input
+                type="password"
+                placeholder={
+                  ai.data.key_configured ? `Chave salva (${ai.data.key_hint})` : "Cole sua chave de API"
+                }
+                value={ai.apiKey}
+                onChange={(event) => ai.setApiKey(event.target.value)}
+              />
+            </label>
+            <label>
+              Modelo (opcional)
+              <input
+                placeholder="padrao do provedor"
+                value={ai.data.chat_model || ""}
+                onChange={(event) => ai.setData({ ...ai.data, chat_model: event.target.value })}
+              />
+            </label>
+          </div>
+        )}
+
+        <div className="integration-actions">
+          <button type="button" onClick={() => ai.save(ai.data)} disabled={ai.saving}>
+            {ai.saving ? "Salvando..." : "Salvar IA"}
+          </button>
+        </div>
       </section>
     </>
   );
