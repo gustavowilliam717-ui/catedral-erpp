@@ -1550,6 +1550,50 @@ ML_SYNC_MAX_OFFSET = 2000
 ML_MULTIGET_BATCH = 20
 
 
+def sync_ml_store_integration(db: Session, credential: models.MarketplaceCredential, me: dict | None = None):
+    me = me or {}
+    seller_id = str(me.get("id") or credential.external_user_id or "").strip()
+    nickname = str(me.get("nickname") or credential.nickname or "Conta Mercado Livre").strip()
+    site_id = str(me.get("site_id") or "").strip().upper()
+    country = "BR" if site_id in {"MLB", ""} else site_id
+    query = db.query(models.StoreIntegration).filter(
+        models.StoreIntegration.marketplace == ML_MARKETPLACE_LABEL
+    )
+
+    if seller_id:
+        integration = query.filter(models.StoreIntegration.shop_id == seller_id).first()
+    else:
+        integration = query.filter(models.StoreIntegration.shop_id == "").first()
+
+    if not integration:
+        integration = models.StoreIntegration(marketplace=ML_MARKETPLACE_LABEL)
+        db.add(integration)
+
+    integration.store_name = nickname
+    integration.country = country
+    integration.shop_id = seller_id
+    integration.status = "Ativo"
+    integration.auth_date = datetime.utcnow().strftime("%d/%m/%Y %H:%M")
+    integration.notes = "Autorizada pelo Mercado Livre Developers"
+    db.commit()
+    db.refresh(integration)
+    return integration
+
+
+def mark_ml_store_integrations_disconnected(db: Session):
+    integrations = (
+        db.query(models.StoreIntegration)
+        .filter(models.StoreIntegration.marketplace == ML_MARKETPLACE_LABEL)
+        .all()
+    )
+
+    for integration in integrations:
+        integration.status = "Expirado"
+        integration.notes = "Conta Mercado Livre desconectada"
+
+    db.commit()
+
+
 def resolve_ml_seller_id(db: Session):
     _, credential = get_valid_ml_access_token(db)
     seller_id = (credential.external_user_id or "").strip()
@@ -3135,13 +3179,17 @@ def mercadolivre_callback(
             }
         )
         credential = save_ml_credential(token_payload, db)
+        me = {}
 
         try:
             me = ml_authenticated_get("/users/me", db)
             credential.nickname = str(me.get("nickname") or "")
+            credential.external_user_id = str(me.get("id") or credential.external_user_id or "")
             db.commit()
         except HTTPException:
             pass
+
+        sync_ml_store_integration(db, credential, me)
 
         return redirect_with("conectado")
     except HTTPException as exc:
@@ -3313,6 +3361,8 @@ def mercadolivre_disconnect(
     if credential:
         db.delete(credential)
         db.commit()
+
+    mark_ml_store_integrations_disconnected(db)
 
     return {"message": "Conta Mercado Livre desconectada"}
 
