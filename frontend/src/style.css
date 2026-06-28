@@ -2862,9 +2862,9 @@ button {
 
 .shopee-auth-modal {
   display: grid;
-  grid-template-rows: auto minmax(320px, 72vh) auto;
+  grid-template-rows: auto auto auto;
   gap: 12px;
-  width: min(980px, 100%);
+  width: min(620px, 100%);
   max-height: calc(100vh - 36px);
   padding: 14px;
   border-radius: 8px;
@@ -2873,11 +2873,24 @@ button {
 }
 
 .shopee-auth-frame {
-  width: 100%;
-  height: 100%;
+  display: grid;
+  gap: 8px;
+  min-height: 140px;
+  align-content: center;
+  padding: 18px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: white;
+  background: #f8fafc;
+}
+
+.shopee-auth-frame strong {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.shopee-auth-frame span {
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 .integration-status {

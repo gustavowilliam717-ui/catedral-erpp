@@ -95,6 +95,37 @@ function readShopeeReturnStatus() {
   return status;
 }
 
+function getShopeePopupFeatures() {
+  const width = 1060;
+  const height = 820;
+  const left = Math.max(0, Math.round((window.screen.width - width) / 2));
+  const top = Math.max(0, Math.round((window.screen.height - height) / 2));
+
+  return [
+    "popup=yes",
+    `width=${width}`,
+    `height=${height}`,
+    `left=${left}`,
+    `top=${top}`,
+    "menubar=no",
+    "toolbar=no",
+    "location=yes",
+    "status=no",
+    "resizable=yes",
+    "scrollbars=yes",
+  ].join(",");
+}
+
+function openShopeePopup(url = "") {
+  const popup = window.open(url || "about:blank", "next_erp_shopee_login", getShopeePopupFeatures());
+
+  if (popup) {
+    popup.focus();
+  }
+
+  return popup;
+}
+
 export default function StoreIntegrations() {
   const [integrations, setIntegrations] = useState([]);
   const [selectedMarketplace, setSelectedMarketplace] = useState("Shopee");
@@ -305,14 +336,28 @@ export default function StoreIntegrations() {
       return;
     }
 
+    const popup = openShopeePopup();
+
     try {
       setIsConnectingShopee(true);
       setMessage("");
       await persistShopeeConfig({ silent: true });
       const response = await API.get("/integrations/shopee/connect");
-      setAuthUrl(response.data.authorization_url);
-      setMessage("Login da Shopee aberto.");
+      const authorizationUrl = response.data.authorization_url;
+      setAuthUrl(authorizationUrl);
+
+      if (popup && !popup.closed) {
+        popup.location.href = authorizationUrl;
+        popup.focus();
+        setMessage("Login da Shopee aberto em uma nova janela.");
+      } else {
+        setMessage("Clique em Abrir login da Shopee para continuar.");
+      }
     } catch (error) {
+      if (popup && !popup.closed) {
+        popup.close();
+      }
+
       logError(error);
       setMessage(error?.response?.data?.detail || "Nao foi possivel abrir a Shopee.");
     } finally {
@@ -710,15 +755,17 @@ export default function StoreIntegrations() {
               </button>
             </div>
 
-            <iframe
-              title="Login Shopee"
-              src={authUrl}
-              className="shopee-auth-frame"
-            />
+            <div className="shopee-auth-frame">
+              <strong>Janela de login aberta.</strong>
+              <span>
+                Autorize a loja na pagina da Shopee. Depois da confirmacao, volte
+                aqui para validar a conexao.
+              </span>
+            </div>
 
             <div className="integration-actions">
-              <button type="button" onClick={() => window.location.assign(authUrl)}>
-                Abrir em tela inteira
+              <button type="button" onClick={() => openShopeePopup(authUrl)}>
+                Abrir login da Shopee
               </button>
               <button
                 type="button"
