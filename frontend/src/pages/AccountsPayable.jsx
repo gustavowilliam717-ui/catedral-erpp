@@ -119,9 +119,7 @@ export default function AccountsPayable({ setPage }) {
       data.append("reminder_enabled", boleto.reminder ? "true" : "false");
       if (boleto.file) data.append("file", boleto.file);
 
-      const response = await API.post("/finance/payables/boleto", data, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const response = await API.post("/finance/payables/boleto", data);
       const p = response.data?.payable;
       setBoleto({ line: "", file: null, reminder: true });
       setMessage(

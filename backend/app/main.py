@@ -4684,17 +4684,30 @@ def distribute_marketplace_order(db: Session, provider: str, payload: dict):
     external_id = f"{provider}:{order_id}"
     description = f"Venda {label} #{order_id}"[:240]
 
+    # Só pedidos efetivamente pagos/concluidos viram receita. Cancelados, nao
+    # pagos, devolvidos ou reembolsados nao entram no faturamento (mesma regra
+    # do conector nativo do Mercado Livre).
+    status_text = norm["status"]
+    is_sale = not any(
+        k in status_text
+        for k in ("cancel", "unpaid", "to_pay", "to pay", "topay", "closed", "invalid", "fail", "return", "devolv", "reembols", "refund")
+    )
+
     revenue = db.query(models.Revenue).filter(models.Revenue.external_id == external_id).first()
     is_new = revenue is None
 
-    if not revenue:
-        revenue = models.Revenue(external_id=external_id, category="Venda")
-        db.add(revenue)
-
-    revenue.description = description
-    revenue.value = norm["total"]
-    revenue.marketplace = label
-    revenue.sku = norm["sku"]
+    if is_sale:
+        if not revenue:
+            revenue = models.Revenue(external_id=external_id, category="Venda")
+            db.add(revenue)
+        revenue.description = description
+        revenue.value = norm["total"]
+        revenue.marketplace = label
+        revenue.sku = norm["sku"]
+    elif revenue:
+        # pedido deixou de ser uma venda valida: remove a receita lancada antes
+        db.delete(revenue)
+        is_new = False
 
     order = (
         db.query(models.MarketplaceOrder)
@@ -5486,7 +5499,15 @@ def create_payable_from_boleto(
     ai = None
 
     if file is not None:
-        content = file.file.read()
+        content_type = (file.content_type or "").lower()
+
+        if content_type and not content_type.startswith("image/"):
+            raise HTTPException(status_code=415, detail="Envie uma imagem do boleto (JPG, PNG).")
+
+        content = file.file.read(8 * 1024 * 1024 + 1)  # le no maximo ~8MB
+
+        if len(content) > 8 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Imagem do boleto muito grande (limite de 8MB).")
 
         if content:
             ai = extract_boleto_via_ai(content, file.content_type)
