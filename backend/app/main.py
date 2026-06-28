@@ -45,8 +45,56 @@ from .database import (
 )
 from . import models, schemas
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+# IA configuravel por provedor. Gemini e Groq sao compativeis com o SDK da
+# OpenAI (basta mudar base_url e modelo), entao da para usar IA gratuita.
+# Variaveis: AI_PROVIDER (openai|gemini|groq) e AI_API_KEY. Modelos podem ser
+# sobrescritos por AI_CHAT_MODEL / AI_VISION_MODEL.
+AI_PROVIDERS = {
+    "openai": {"base_url": None, "chat_model": "gpt-4o-mini", "vision_model": "gpt-4o-mini"},
+    "gemini": {
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "chat_model": "gemini-2.0-flash",
+        "vision_model": "gemini-2.0-flash",
+    },
+    "groq": {
+        "base_url": "https://api.groq.com/openai/v1",
+        "chat_model": "llama-3.3-70b-versatile",
+        "vision_model": "llama-3.3-70b-versatile",
+    },
+}
+
+AI_PROVIDER = (os.getenv("AI_PROVIDER", "openai") or "openai").strip().lower()
+AI_API_KEY = (
+    os.getenv("AI_API_KEY", "")
+    or os.getenv("OPENAI_API_KEY", "")
+    or os.getenv("GEMINI_API_KEY", "")
+    or os.getenv("GROQ_API_KEY", "")
+)
+OPENAI_API_KEY = AI_API_KEY  # compatibilidade
+
+
+def _ai_config():
+    return AI_PROVIDERS.get(AI_PROVIDER, AI_PROVIDERS["openai"])
+
+
+def ai_chat_model():
+    return os.getenv("AI_CHAT_MODEL", "").strip() or _ai_config()["chat_model"]
+
+
+def ai_vision_model():
+    return os.getenv("AI_VISION_MODEL", "").strip() or _ai_config()["vision_model"]
+
+
+def _build_ai_client():
+    if not AI_API_KEY:
+        return None
+    cfg = _ai_config()
+    if cfg["base_url"]:
+        return OpenAI(api_key=AI_API_KEY, base_url=cfg["base_url"])
+    return OpenAI(api_key=AI_API_KEY)
+
+
+openai_client = _build_ai_client()
 security = HTTPBearer(auto_error=False)
 
 # Modo de desenvolvimento: quando ativo e sem SMTP/SMS configurados,
@@ -2712,11 +2760,11 @@ def auth_logout(
 @app.post("/chat")
 def chat(request: ChatRequest, user: models.User = Depends(require_user)):
     if not openai_client:
-        raise HTTPException(status_code=500, detail="OPENAI_API_KEY não está configurada.")
+        raise HTTPException(status_code=500, detail="IA nao configurada. Defina AI_API_KEY (e AI_PROVIDER) no servidor.")
 
     try:
         completion = openai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=ai_chat_model(),
             messages=[
                 {"role": "system", "content": "Voce e um assistente inteligente da NEXT ERP, ajudando com informacoes sobre estoque, marketplace, precificacao e processos de vendas."},
                 {"role": "user", "content": request.message},
@@ -5278,7 +5326,7 @@ def extract_boleto_via_ai(image_bytes: bytes, content_type: str):
 
     try:
         completion = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=ai_vision_model(),
             messages=[
                 {
                     "role": "user",
