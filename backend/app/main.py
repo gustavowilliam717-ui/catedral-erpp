@@ -1091,7 +1091,7 @@ def get_shopee_config(db: Session):
         if env_value:
             config[key] = env_value
 
-    config["partner_id"] = str(config.get("partner_id") or "").strip()
+    config["partner_id"] = validate_shopee_partner_id(config.get("partner_id"))
     config["partner_key"] = str(config.get("partner_key") or "").strip()
     config["shop_id"] = str(config.get("shop_id") or "").strip()
     config["shop_name"] = str(config.get("shop_name") or "").strip()
@@ -1116,6 +1116,9 @@ def update_shopee_config(db: Session, payload: ShopeeConfigUpdate):
             cleaned = value.strip()
 
             if cleaned:
+                if key == "partner_id":
+                    cleaned = validate_shopee_partner_id(cleaned)
+
                 current[key] = cleaned
         elif value is not None:
             current[key] = value
@@ -1186,6 +1189,15 @@ def append_url_params(url: str, params: dict):
 def shopee_numeric_value(value: str):
     text = str(value or "").strip()
     return int(text) if text.isdigit() else text
+
+
+def validate_shopee_partner_id(partner_id: str):
+    value = str(partner_id or "").strip()
+
+    if value and not value.isdigit():
+        raise HTTPException(status_code=400, detail="Partner ID da Shopee deve ser numerico.")
+
+    return value
 
 
 def shopee_request(
