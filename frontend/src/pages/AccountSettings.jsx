@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
 import { logError } from "../utils/logger";
+import { useT } from "../i18n/LanguageContext";
 
 function useNotificationPrefs() {
   const [prefs, setPrefs] = useState({ notifications: {}, security: {} });
@@ -171,13 +172,14 @@ export default function AccountSettings({
 }
 
 function AccountSidebar({ activePage, setPage }) {
+  const { t } = useT();
   return (
     <aside className="settings-sidebar">
-      <h2>Configuracoes da Conta</h2>
+      <h2>{t("Configuracoes")} {t("Minha Conta")}</h2>
 
       {sidebarGroups.map((group) => (
         <div key={group.title}>
-          <strong>{group.title}</strong>
+          <strong>{t(group.title)}</strong>
           {group.items.map((item) => (
             <button
               type="button"
@@ -185,7 +187,7 @@ function AccountSidebar({ activePage, setPage }) {
               className={activePage === item.key ? "active" : ""}
               onClick={() => setPage?.(item.key)}
             >
-              {item.label}
+              {t(item.label)}
             </button>
           ))}
         </div>
@@ -272,34 +274,53 @@ function AccountInfo({ label, value, action }) {
 }
 
 function LanguageSettings() {
+  const { t, lang, setLang, languages } = useT();
+  const [message, setMessage] = useState("");
+
   return (
     <section className="settings-tool-card account-card">
-      <h2>Idioma</h2>
+      <h2>{t("Idioma")}</h2>
+      <p className="account-notification-hint">
+        {t("Idioma de exibicao")}: ao trocar, todo o sistema muda na hora.
+      </p>
       <div className="account-form-grid">
         <label>
-          Idioma de exibicao
-          <select defaultValue="pt-br">
-            <option value="pt-br">Portugues (Brasil)</option>
-            <option value="en">English</option>
-            <option value="es">Espanol</option>
+          {t("Idioma de exibicao")}
+          <select
+            value={lang}
+            onChange={(event) => {
+              setLang(event.target.value);
+              setMessage("OK");
+            }}
+          >
+            {languages.map((item) => (
+              <option key={item.code} value={item.code}>
+                {item.flag} {item.label}
+              </option>
+            ))}
           </select>
         </label>
         <label>
-          Moeda padrao
+          {t("Moeda padrao")}
           <select defaultValue="brl">
             <option value="brl">BRL</option>
             <option value="usd">USD</option>
+            <option value="eur">EUR</option>
           </select>
         </label>
         <label>
-          Fuso horario
+          {t("Fuso horario")}
           <select defaultValue="brasilia">
             <option value="brasilia">(GMT-03:00) Brasilia</option>
             <option value="manaus">(GMT-04:00) Manaus</option>
+            <option value="lisbon">(GMT+00:00) Lisboa</option>
           </select>
         </label>
-        <button type="button">Salvar alteracoes</button>
+        <button type="button" onClick={() => setMessage("OK")}>
+          {t("Salvar alteracoes")}
+        </button>
       </div>
+      {message && <strong className="bulk-message">{t("Idioma")} OK</strong>}
     </section>
   );
 }

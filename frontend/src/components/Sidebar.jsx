@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { erpModules } from "../modules/erpModules";
 import API from "../services/api";
+import { useT } from "../i18n/LanguageContext";
 
 const appShortcuts = [
   { page: "plans", label: "Planos", icon: "P" },
@@ -21,6 +22,7 @@ const accountMenuItems = [
 ];
 
 export default function Sidebar({ page, setPage, user, onLogout }) {
+  const { t } = useT();
   const [appsOpen, setAppsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [liveMarketplaces, setLiveMarketplaces] = useState([]);
@@ -128,14 +130,14 @@ export default function Sidebar({ page, setPage, user, onLogout }) {
                   className={isActive ? "active" : ""}
                   onClick={() => openModule(module)}
                 >
-                  {module.label}
+                  {t(module.label)}
                 </button>
 
                 {module.columns && (
                   <div className={`mega-menu ${module.menuVariant || ""}`}>
                     {module.columns.map((column) => (
                       <div className="mega-column" key={column.title}>
-                        <h3>{column.title}</h3>
+                        <h3>{t(column.title)}</h3>
 
                         {column.items?.map((item) => (
                           <button
@@ -144,7 +146,7 @@ export default function Sidebar({ page, setPage, user, onLogout }) {
                             className={page === item.page ? "selected" : ""}
                             onClick={() => setPage(item.page)}
                           >
-                            {item.label}
+                            {t(item.label)}
                             {(item.badge || item.active) && (
                               <span>{item.badge || "Ativo"}</span>
                             )}
@@ -181,8 +183,8 @@ export default function Sidebar({ page, setPage, user, onLogout }) {
                                     <strong>{marketplace.label}</strong>
                                     <span>
                                       {isConnected
-                                        ? connection.nickname || "Autorizado"
-                                        : "Conectar"}
+                                        ? connection.nickname || t("Autorizado")
+                                        : t("Conectar")}
                                     </span>
                                   </button>
 
@@ -196,7 +198,7 @@ export default function Sidebar({ page, setPage, user, onLogout }) {
                                         }
                                         onClick={() => setPage(action.page)}
                                       >
-                                        {action.label}
+                                        {t(action.label)}
                                       </button>
                                     ))}
                                   </div>
@@ -208,7 +210,7 @@ export default function Sidebar({ page, setPage, user, onLogout }) {
 
                         {column.notAuthorized && (
                           <div className="not-authorized-block">
-                            <strong>Nao Autorizado</strong>
+                            <strong>{t("Nao Autorizado")}</strong>
                             <div>
                               {column.notAuthorized.map((marketplace) => (
                                 <button
@@ -302,7 +304,7 @@ export default function Sidebar({ page, setPage, user, onLogout }) {
                     onClick={() => openShortcut(shortcut.page)}
                   >
                     <span>{shortcut.icon}</span>
-                    <strong>{shortcut.label}</strong>
+                    <strong>{t(shortcut.label)}</strong>
                   </button>
                 ))}
               </div>
@@ -355,13 +357,13 @@ export default function Sidebar({ page, setPage, user, onLogout }) {
                     onClick={() => openAccountPage(item.page)}
                   >
                     <span>{item.icon}</span>
-                    {item.label}
+                    {t(item.label)}
                   </button>
                 ))}
 
                 <button type="button" className="logout-row" onClick={onLogout}>
                   <span>X</span>
-                  Sair
+                  {t("Sair")}
                 </button>
               </div>
             )}

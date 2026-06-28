@@ -1,4 +1,5 @@
 import { findModulePage } from "../modules/erpModules";
+import { useT } from "../i18n/LanguageContext";
 
 const pageTitles = {
   dashboard: "Home",
@@ -73,11 +74,12 @@ const pageTitles = {
 };
 
 export default function Topbar({ page }) {
+  const { t } = useT();
   const modulePage = findModulePage(page);
-  const title = pageTitles[page] || modulePage?.label || "NEXT ERP";
+  const title = t(pageTitles[page] || modulePage?.label || "NEXT ERP");
   const subtitle = modulePage
-    ? `${modulePage.module} / ${modulePage.group}`
-    : "Central de operacao para produtos, estoque e marketplaces.";
+    ? `${t(modulePage.module)} / ${t(modulePage.group)}`
+    : t("Central de operacao para produtos, estoque e marketplaces.");
 
   return (
     <div className="page-toolbar">

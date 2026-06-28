@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
+import { LanguageProvider } from "./i18n/LanguageContext";
 
 import Login from "./pages/Login";
 import API from "./services/api";
@@ -392,4 +393,8 @@ function App() {
   );
 }
 
-createRoot(document.getElementById("root")).render(<App />);
+createRoot(document.getElementById("root")).render(
+  <LanguageProvider>
+    <App />
+  </LanguageProvider>
+);
