@@ -144,6 +144,88 @@ class Setting(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 
+class ModuleRecord(Base):
+    """Registro generico de qualquer pasta/modulo do ERP.
+
+    Cada pasta reservada (rascunhos, catalogo, promocoes, etc.) guarda seus
+    cadastros aqui. Os campos de cada pasta sao definidos no backend e o
+    conteudo do formulario fica serializado em `data` (JSON)."""
+
+    __tablename__ = "module_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    module_page = Column(String, index=True)
+    title = Column(String, default="")
+    data = Column(Text, default="{}")
+    marketplace = Column(String, default="", index=True)
+    sku = Column(String, default="", index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class MarketplaceListing(Base):
+    """Dado completo de um anuncio/produto vindo de um marketplace.
+
+    Recebe o payload bruto da API e a versao normalizada (cada informacao ja
+    distribuida para o campo canonico da NEXT). Ligado ao Product por SKU."""
+
+    __tablename__ = "marketplace_listings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    provider = Column(String, index=True)
+    marketplace = Column(String, default="", index=True)
+    listing_id = Column(String, default="", index=True)
+    product_id = Column(Integer, default=0, index=True)
+    sku = Column(String, default="", index=True)
+    name = Column(String, default="")
+    description = Column(Text, default="")
+    price = Column(Float, default=0)
+    cost = Column(Float, default=0)
+    stock = Column(Integer, default=0)
+    status = Column(String, default="")
+    brand = Column(String, default="")
+    gtin = Column(String, default="")
+    ncm = Column(String, default="")
+    category_id = Column(String, default="")
+    category_name = Column(String, default="")
+    weight = Column(Float, default=0)
+    length = Column(Float, default=0)
+    width = Column(Float, default=0)
+    height = Column(Float, default=0)
+    url = Column(String, default="")
+    image_url = Column(String, default="")
+    images = Column(Text, default="[]")
+    variations = Column(Text, default="[]")
+    attributes = Column(Text, default="{}")
+    raw_payload = Column(Text, default="{}")
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class MarketplaceOrder(Base):
+    """Pedido completo vindo de um marketplace, ja normalizado por campo."""
+
+    __tablename__ = "marketplace_orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    provider = Column(String, index=True)
+    marketplace = Column(String, default="", index=True)
+    order_id = Column(String, default="", index=True)
+    external_id = Column(String, default="", index=True)
+    status = Column(String, default="")
+    total = Column(Float, default=0)
+    currency = Column(String, default="BRL")
+    buyer_name = Column(String, default="")
+    buyer_document = Column(String, default="")
+    sku = Column(String, default="")
+    items = Column(Text, default="[]")
+    shipping = Column(Text, default="{}")
+    attributes = Column(Text, default="{}")
+    raw_payload = Column(Text, default="{}")
+    order_date = Column(String, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
 class FiscalInvoice(Base):
     __tablename__ = "fiscal_invoices"
 

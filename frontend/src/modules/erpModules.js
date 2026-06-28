@@ -311,6 +311,7 @@ export const erpModules = [
           { page: "shein-integration", label: "Shein" },
           { page: "tiktok-integration", label: "TikTok Shop" },
           { page: "temu-integration", label: "Temu" },
+          { page: "field-mapping", label: "Mapeamento de Campos" },
         ],
       },
     ],

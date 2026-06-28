@@ -27,7 +27,7 @@ from email.message import EmailMessage
 from zipfile import ZipFile
 from xml.etree import ElementTree as ET
 from pydantic import BaseModel, Field
-from fastapi import UploadFile, File
+from fastapi import UploadFile, File, Body
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from openai import OpenAI
 from app.models import Product
@@ -4233,47 +4233,18 @@ def sync_generic_products(provider: str, db: Session):
     updated = 0
 
     for item in items:
-        external = str(_generic_field(item, "item_id", "product_id", "id", "sku_id") or "").strip()
-        sku = str(_generic_field(item, "sku", "seller_sku", "model_sku") or external).strip()
-
-        if not sku:
+        if not isinstance(item, dict):
             continue
 
-        name = str(_generic_field(item, "name", "title", "product_name", "item_name") or sku).strip()
-        price = parse_number(_generic_field(item, "price", "sale_price", "current_price", "item_price"), 0)
-        stock = int(parse_number(_generic_field(item, "stock", "quantity", "available_quantity", "stock_quantity"), 0))
-        status = str(_generic_field(item, "status", "state") or "").strip().lower()
+        result = distribute_marketplace_product(db, provider, item)
 
-        existing = (
-            db.query(models.Product)
-            .filter(models.Product.marketplace == label, models.Product.sku == sku)
-            .first()
-        )
+        if result is None:
+            continue
 
-        if existing:
-            existing.name = name
-            existing.sale_price = price
-            existing.stock = stock
-            existing.marketplace_status = status
-
-            if external and not existing.barcode:
-                existing.barcode = external
-
-            updated += 1
-        else:
-            db.add(
-                models.Product(
-                    sku=sku,
-                    name=name,
-                    sale_price=price,
-                    stock=stock,
-                    barcode=external,
-                    marketplace=label,
-                    marketplace_status=status,
-                    minimum_stock=0,
-                )
-            )
+        if result["is_new"]:
             created += 1
+        else:
+            updated += 1
 
     db.commit()
     return {"items_found": len(items), "created": created, "updated": updated}
@@ -4302,36 +4273,20 @@ def sync_generic_orders(provider: str, db: Session):
     skipped = 0
 
     for order in orders:
-        order_id = str(_generic_field(order, "order_id", "order_sn", "id", "orderId") or "").strip()
-
-        if not order_id:
+        if not isinstance(order, dict):
             skipped += 1
             continue
 
-        external_id = f"{provider}:{order_id}"
-        total = parse_number(
-            _generic_field(order, "total_amount", "total_price", "payment_amount", "amount", "total"),
-            0,
-        )
-        description = f"Venda {label} #{order_id}"[:240]
-        existing = db.query(models.Revenue).filter(models.Revenue.external_id == external_id).first()
+        result = distribute_marketplace_order(db, provider, order)
 
-        if existing:
-            existing.value = total
-            existing.description = description
-            existing.marketplace = label
-            updated += 1
-        else:
-            db.add(
-                models.Revenue(
-                    description=description,
-                    value=total,
-                    category="Venda",
-                    marketplace=label,
-                    external_id=external_id,
-                )
-            )
+        if result is None:
+            skipped += 1
+            continue
+
+        if result["is_new"]:
             created += 1
+        else:
+            updated += 1
 
     db.commit()
     return {"orders_found": found, "created": created, "updated": updated, "skipped": skipped}
@@ -4466,6 +4421,568 @@ def generic_connector_sync(
     products_result = sync_generic_products(provider, db)
     orders_result = sync_generic_orders(provider, db)
     return {"products": products_result, "orders": orders_result}
+
+
+# =========================================================================
+# Motor de normalizacao / distribuicao de dados de marketplace
+# Recebe o payload bruto de QUALQUER marketplace e distribui cada informacao
+# para o campo canonico correto da NEXT (Product, Revenue) e guarda o dado
+# completo em MarketplaceListing / MarketplaceOrder.
+# Quando uma API de marketplace conecta, e este motor que entende tudo.
+# =========================================================================
+
+MARKETPLACE_OPTIONS = ["Shopee", "Mercado Livre", "Amazon", "Shein", "TikTok Shop", "Temu"]
+
+
+def _md_flatten(payload):
+    """Achata o payload (nivel superior + containers aninhados comuns) em um
+    dicionario com chaves minusculas, para casar aliases de qualquer API."""
+    flat = {}
+
+    def absorb(d):
+        if not isinstance(d, dict):
+            return
+        for key, value in d.items():
+            kl = str(key).lower()
+            if kl not in flat:
+                flat[kl] = value
+
+    absorb(payload)
+
+    if isinstance(payload, dict):
+        for nest in (
+            "item",
+            "product",
+            "products",
+            "data",
+            "sku",
+            "goods",
+            "base_info",
+            "detail",
+            "order",
+            "attributes",
+            "extra",
+            "main",
+        ):
+            value = payload.get(nest)
+
+            if isinstance(value, dict):
+                absorb(value)
+            elif isinstance(value, list) and value and isinstance(value[0], dict):
+                absorb(value[0])
+
+    return flat
+
+
+def _md_value(flat, aliases, default=""):
+    for alias in aliases:
+        if alias in flat and flat[alias] not in (None, "", [], {}):
+            return flat[alias]
+
+    return default
+
+
+def normalize_marketplace_product(provider: str, payload: dict):
+    flat = _md_flatten(payload)
+    g = lambda *aliases: _md_value(flat, list(aliases))
+
+    listing_id = str(g("item_id", "product_id", "id", "sku_id", "listing_id", "spu_id", "goods_id") or "").strip()
+    sku = str(g("sku", "seller_sku", "model_sku", "item_sku", "seller_custom_field") or listing_id).strip()
+    name = str(g("name", "title", "product_name", "item_name", "goods_name", "subject") or sku).strip()
+
+    images = g("images", "image_list", "image_urls", "pictures", "gallery", "img_list")
+    if not isinstance(images, list):
+        images = []
+    image_url = str(g("image", "image_url", "main_image", "thumbnail", "cover_image") or "")
+    if not image_url and images:
+        first = images[0]
+        image_url = (first.get("url") if isinstance(first, dict) else str(first)) or ""
+    image_url = image_url.replace("http://", "https://")
+
+    variations = g("variations", "variation_list", "skus", "models", "tier_variations")
+    if not isinstance(variations, list):
+        variations = []
+
+    category = str(g("category_name", "category_path", "categories", "category") or "")
+
+    return {
+        "listing_id": listing_id,
+        "sku": sku,
+        "name": name,
+        "description": str(g("description", "desc", "detail", "body_html") or ""),
+        "price": parse_number(g("price", "sale_price", "current_price", "item_price", "original_price", "list_price"), 0),
+        "cost": parse_number(g("cost", "cost_price", "purchase_price"), 0),
+        "stock": int(parse_number(g("stock", "quantity", "available_quantity", "stock_quantity", "inventory", "qty"), 0)),
+        "status": str(g("status", "state", "listing_status", "item_status") or "").strip().lower(),
+        "brand": str(g("brand", "brand_name", "marca") or ""),
+        "gtin": str(g("gtin", "ean", "barcode", "upc") or ""),
+        "ncm": str(g("ncm", "ncm_code", "hs_code") or ""),
+        "category": category,
+        "category_id": str(g("category_id", "cat_id") or ""),
+        "category_name": str(g("category_name", "category_path", "categories") or ""),
+        "weight": parse_number(g("weight", "item_weight", "package_weight", "gross_weight", "net_weight"), 0),
+        "length": parse_number(g("length", "package_length"), 0),
+        "width": parse_number(g("width", "package_width"), 0),
+        "height": parse_number(g("height", "package_height"), 0),
+        "url": str(g("url", "permalink", "product_url", "listing_url", "link") or ""),
+        "image_url": image_url,
+        "images": images,
+        "variations": variations,
+        "supplier": str(g("supplier", "supplier_name", "vendor") or ""),
+    }
+
+
+def distribute_marketplace_product(db: Session, provider: str, payload: dict):
+    """Distribui um produto de marketplace para os campos canonicos da NEXT."""
+    label = get_connector_meta(provider)["label"] if provider in GENERIC_CONNECTORS else provider
+    norm = normalize_marketplace_product(provider, payload)
+    sku = norm["sku"]
+
+    if not sku:
+        return None
+
+    product = (
+        db.query(models.Product)
+        .filter(models.Product.marketplace == label, models.Product.sku == sku)
+        .first()
+    )
+
+    if not product:
+        product = models.Product(sku=sku, marketplace=label, minimum_stock=0)
+        db.add(product)
+
+    product.name = norm["name"] or product.name
+    if norm["description"]:
+        product.description = norm["description"]
+    if norm["price"]:
+        product.sale_price = norm["price"]
+    product.stock = norm["stock"]
+    product.marketplace_status = norm["status"]
+    if norm["cost"]:
+        product.cost = norm["cost"]
+    if norm["category"]:
+        product.category = norm["category"]
+    if norm["supplier"]:
+        product.supplier = norm["supplier"]
+    if norm["image_url"]:
+        product.image_url = norm["image_url"]
+    if norm["gtin"]:
+        product.barcode = norm["gtin"]
+    elif norm["listing_id"] and not product.barcode:
+        product.barcode = norm["listing_id"]
+
+    db.flush()
+
+    key_id = norm["listing_id"] or sku
+    query = db.query(models.MarketplaceListing).filter(models.MarketplaceListing.provider == provider)
+    listing = (
+        query.filter(models.MarketplaceListing.listing_id == key_id).first()
+        if norm["listing_id"]
+        else query.filter(models.MarketplaceListing.sku == sku).first()
+    )
+    is_new = listing is None
+
+    if not listing:
+        listing = models.MarketplaceListing(provider=provider, listing_id=key_id)
+        db.add(listing)
+
+    listing.marketplace = label
+    listing.product_id = product.id
+    listing.sku = sku
+    listing.name = norm["name"]
+    listing.description = norm["description"]
+    listing.price = norm["price"]
+    listing.cost = norm["cost"]
+    listing.stock = norm["stock"]
+    listing.status = norm["status"]
+    listing.brand = norm["brand"]
+    listing.gtin = norm["gtin"]
+    listing.ncm = norm["ncm"]
+    listing.category_id = norm["category_id"]
+    listing.category_name = norm["category_name"]
+    listing.weight = norm["weight"]
+    listing.length = norm["length"]
+    listing.width = norm["width"]
+    listing.height = norm["height"]
+    listing.url = norm["url"]
+    listing.image_url = norm["image_url"]
+    listing.images = json.dumps(norm["images"], ensure_ascii=False, default=str)
+    listing.variations = json.dumps(norm["variations"], ensure_ascii=False, default=str)
+    listing.attributes = json.dumps(norm, ensure_ascii=False, default=str)
+    listing.raw_payload = json.dumps(payload, ensure_ascii=False, default=str)[:200000]
+    listing.updated_at = datetime.utcnow()
+
+    return {"sku": sku, "listing_id": key_id, "product_id": product.id, "is_new": is_new}
+
+
+def normalize_marketplace_order(provider: str, payload: dict):
+    flat = _md_flatten(payload)
+    g = lambda *aliases: _md_value(flat, list(aliases))
+
+    order_id = str(g("order_id", "order_sn", "id", "orderid", "order_number", "ordersn") or "").strip()
+    items = g("items", "order_items", "item_list", "line_items", "order_item_list")
+    if not isinstance(items, list):
+        items = []
+    shipping = g("shipping", "shipping_address", "recipient_address", "delivery")
+    if not isinstance(shipping, dict):
+        shipping = {}
+
+    sku = ""
+    if items and isinstance(items[0], dict):
+        first = items[0]
+        sku = str(
+            first.get("sku")
+            or first.get("seller_sku")
+            or first.get("item_sku")
+            or (first.get("item") or {}).get("seller_sku")
+            or ""
+        )
+
+    return {
+        "order_id": order_id,
+        "status": str(g("status", "order_status", "state") or "").strip().lower(),
+        "total": parse_number(g("total_amount", "total_price", "payment_amount", "amount", "total", "grand_total", "paid_amount"), 0),
+        "currency": str(g("currency", "currency_code") or "BRL"),
+        "buyer_name": str(g("buyer_name", "buyer_username", "recipient_name", "customer_name", "buyer") or ""),
+        "buyer_document": str(g("buyer_document", "cpf", "tax_id", "document") or ""),
+        "order_date": str(g("create_time", "created_at", "order_date", "creation_date", "date_created", "ctime") or ""),
+        "items": items,
+        "shipping": shipping,
+        "sku": sku,
+    }
+
+
+def distribute_marketplace_order(db: Session, provider: str, payload: dict):
+    label = get_connector_meta(provider)["label"] if provider in GENERIC_CONNECTORS else provider
+    norm = normalize_marketplace_order(provider, payload)
+    order_id = norm["order_id"]
+
+    if not order_id:
+        return None
+
+    external_id = f"{provider}:{order_id}"
+    description = f"Venda {label} #{order_id}"[:240]
+
+    revenue = db.query(models.Revenue).filter(models.Revenue.external_id == external_id).first()
+    is_new = revenue is None
+
+    if not revenue:
+        revenue = models.Revenue(external_id=external_id, category="Venda")
+        db.add(revenue)
+
+    revenue.description = description
+    revenue.value = norm["total"]
+    revenue.marketplace = label
+    revenue.sku = norm["sku"]
+
+    order = (
+        db.query(models.MarketplaceOrder)
+        .filter(models.MarketplaceOrder.provider == provider, models.MarketplaceOrder.order_id == order_id)
+        .first()
+    )
+
+    if not order:
+        order = models.MarketplaceOrder(provider=provider, order_id=order_id)
+        db.add(order)
+
+    order.marketplace = label
+    order.external_id = external_id
+    order.status = norm["status"]
+    order.total = norm["total"]
+    order.currency = norm["currency"]
+    order.buyer_name = norm["buyer_name"]
+    order.buyer_document = norm["buyer_document"]
+    order.sku = norm["sku"]
+    order.items = json.dumps(norm["items"], ensure_ascii=False, default=str)
+    order.shipping = json.dumps(norm["shipping"], ensure_ascii=False, default=str)
+    order.attributes = json.dumps(norm, ensure_ascii=False, default=str)
+    order.raw_payload = json.dumps(payload, ensure_ascii=False, default=str)[:200000]
+    order.order_date = norm["order_date"]
+    order.updated_at = datetime.utcnow()
+
+    return {"order_id": order_id, "is_new": is_new}
+
+
+@app.get("/marketplace/field-map")
+def marketplace_field_map(user: models.User = Depends(require_user)):
+    """Documenta o de/para: cada campo canonico da NEXT e os nomes de origem
+    que o motor reconhece em qualquer marketplace."""
+    return {
+        "produto": {
+            "sku": ["sku", "seller_sku", "model_sku", "item_sku", "seller_custom_field"],
+            "listing_id": ["item_id", "product_id", "id", "sku_id", "spu_id", "goods_id"],
+            "nome": ["name", "title", "product_name", "item_name", "goods_name", "subject"],
+            "descricao": ["description", "desc", "detail", "body_html"],
+            "preco": ["price", "sale_price", "current_price", "item_price", "original_price"],
+            "estoque": ["stock", "quantity", "available_quantity", "stock_quantity", "inventory"],
+            "status": ["status", "state", "listing_status", "item_status"],
+            "marca": ["brand", "brand_name", "marca"],
+            "gtin_ean": ["gtin", "ean", "barcode", "upc"],
+            "ncm": ["ncm", "ncm_code", "hs_code"],
+            "categoria": ["category_name", "category_path", "categories", "category"],
+            "peso": ["weight", "item_weight", "package_weight"],
+            "imagens": ["images", "image_list", "image_urls", "pictures", "gallery"],
+        },
+        "pedido": {
+            "order_id": ["order_id", "order_sn", "id", "order_number"],
+            "status": ["status", "order_status", "state"],
+            "total": ["total_amount", "total_price", "payment_amount", "amount", "grand_total"],
+            "comprador": ["buyer_name", "buyer_username", "recipient_name", "customer_name"],
+            "data": ["create_time", "created_at", "order_date", "creation_date"],
+            "itens": ["items", "order_items", "item_list", "line_items"],
+        },
+    }
+
+
+# =========================================================================
+# Pastas/modulos genericos do ERP: cada pasta reservada vira um cadastro real
+# (formulario + listagem + filtros + exportacao), com campos definidos abaixo.
+# =========================================================================
+
+MODULE_FIELD_NEEDS = {
+    "orders": ["canais de venda", "status de pedido", "etiquetas e NF", "regras de envio"],
+    "purchases": ["fornecedores", "prazo medio", "custo por insumo", "pedido minimo"],
+    "product-mapping": ["SKU interno", "SKU do marketplace", "canal", "regra de vinculacao"],
+    "active-ads": ["marketplace", "produto", "status do anuncio", "preco publicado"],
+    "ad-drafts": ["produto base", "titulo", "descricao", "imagens"],
+    "create-ad": ["produto", "marketplace", "categoria", "template de anuncio"],
+    "copy-ads": ["anuncio origem", "loja destino", "campos para copiar", "regra de variacao"],
+    "ad-migration": ["marketplace origem", "marketplace destino", "SKU vinculado", "status de migracao"],
+    "code-control": ["SKU", "codigo de barras", "codigo interno", "codigo do marketplace"],
+    "price-models": ["modelo de margem", "taxas do canal", "frete", "comissao"],
+    "product-data-detective": ["titulo", "descricao", "palavras proibidas", "regras por canal"],
+    "ai-product-image": ["imagem base", "formato desejado", "fundo", "canal de destino"],
+    "ai-product-create": ["nome do produto", "categoria", "atributos", "imagens"],
+    "data-space": ["arquivos do produto", "templates", "historico", "anexos"],
+    "stock-sync": ["marketplace", "SKU", "saldo minimo", "regra de reserva"],
+    "marketplace-stock": ["marketplace", "SKU", "saldo ERP", "saldo publicado"],
+    "stock-low": ["SKU", "estoque minimo", "canal de venda", "prioridade de reposicao"],
+    "stock-report": ["periodo", "marketplace", "divergencias", "historico de sincronizacao"],
+    "stock-shopee": ["loja Shopee", "SKU Shopee", "estoque publicado", "status da API"],
+    "stock-mercado-livre": ["conta Mercado Livre", "SKU", "Mercado Envios Full", "saldo publicado"],
+    "stock-shein": ["loja Shein", "SKU Shein", "estoque publicado", "regra de sincronizacao"],
+    "stock-tiktok": ["loja TikTok Shop", "SKU", "estoque publicado", "reserva por pedido"],
+    "stock-amazon": ["conta Amazon", "SKU/FNSKU", "FBA", "saldo publicado"],
+    "stock-temu": ["loja Temu", "SKU", "estoque publicado", "reserva por pedido"],
+    "mercado-envios-full": ["SKU Full", "saldo no Full", "em transito", "disponivel para venda"],
+    "shopee-fbs": ["SKU FBS", "saldo no FBS", "reserva", "divergencia"],
+    "amazon-fba": ["FNSKU", "saldo FBA", "estoque reservado", "reposicao"],
+    "stock-reservations": ["pedido", "marketplace", "SKU reservado", "prazo de liberacao"],
+    "stock-in-transit": ["marketplace", "remessa", "quantidade", "previsao de chegada"],
+    "stock-divergences": ["SKU", "saldo ERP", "saldo marketplace", "acao corretiva"],
+    "stock-reposition-rules": ["marketplace", "estoque minimo", "lead time", "quantidade sugerida"],
+    "cash-flow": ["receitas", "despesas", "datas", "forma de pagamento"],
+    "dre": ["receita bruta", "custos", "despesas fixas", "impostos"],
+    "marketplace-comparison": ["marketplace", "vendas", "ticket medio", "comissao media"],
+    "sales-analysis": ["periodo", "marketplace", "produto", "faturamento"],
+    "profit-analysis": ["produto", "receita", "custo", "lucro"],
+    "returns": ["pedido", "marketplace", "SKU", "motivo da devolucao"],
+    "refunds": ["pedido", "marketplace", "valor", "status do reembolso"],
+    "claims": ["pedido", "marketplace", "tipo de reclamacao", "status"],
+    "customer-questions": ["marketplace", "produto", "pergunta", "resposta"],
+    "customer-messages": ["marketplace", "cliente", "mensagem", "status"],
+    "buyers-list": ["cliente", "marketplace", "pedidos", "ticket medio"],
+    "request-review": ["pedido", "cliente", "marketplace", "status do pedido de avaliacao"],
+}
+
+MODULE_NUMBER_HINTS = (
+    "preco",
+    "saldo",
+    "estoque",
+    "quantidade",
+    "custo",
+    "orcamento",
+    "margem",
+    "comissao",
+    "frete",
+    "valor",
+    "minimo",
+    "ticket",
+    "vendas",
+    "faturamento",
+    "receita",
+    "lucro",
+    "lead time",
+)
+
+
+def resolve_module_needs(page: str):
+    if page in MODULE_FIELD_NEEDS:
+        return MODULE_FIELD_NEEDS[page]
+
+    if page.endswith("-ad-drafts"):
+        return ["marketplace", "produto base", "titulo", "descricao", "imagens"]
+    if page.endswith("-active-ads"):
+        return ["marketplace", "produto", "status do anuncio", "preco publicado"]
+    if page.endswith("-create-ad"):
+        return ["produto", "categoria", "atributos obrigatorios", "template do anuncio"]
+    if page.endswith("-ad-marketing"):
+        return ["campanha", "orcamento", "produto anunciado", "retorno por canal"]
+    if page.endswith("-catalog"):
+        return ["marketplace", "produto", "categoria", "status do catalogo"]
+    if page.endswith("-promotions"):
+        return ["marketplace", "produto", "desconto", "periodo da promocao"]
+
+    return ["nome", "descricao", "marketplace", "status"]
+
+
+def build_module_fields(page: str):
+    fields = []
+
+    for label in resolve_module_needs(page):
+        lower = label.lower()
+        key = re.sub(r"[^a-z0-9]+", "_", lower).strip("_") or "campo"
+
+        if lower == "marketplace" or lower.startswith("canal"):
+            field = {"key": key, "label": label, "type": "select", "options": MARKETPLACE_OPTIONS}
+        elif any(hint in lower for hint in MODULE_NUMBER_HINTS):
+            field = {"key": key, "label": label, "type": "number"}
+        elif "descricao" in lower or "regra" in lower or "mensagem" in lower or "pergunta" in lower:
+            field = {"key": key, "label": label, "type": "textarea"}
+        else:
+            field = {"key": key, "label": label, "type": "text"}
+
+        fields.append(field)
+
+    return fields
+
+
+def serialize_module_record(record: models.ModuleRecord):
+    try:
+        data = json.loads(record.data or "{}")
+    except (TypeError, ValueError):
+        data = {}
+
+    return {
+        "id": record.id,
+        "title": record.title,
+        "marketplace": record.marketplace,
+        "sku": record.sku,
+        "data": data,
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+        "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+    }
+
+
+def _module_record_meta(page: str, data: dict):
+    fields = build_module_fields(page)
+    title = ""
+
+    # Prefere um campo descritivo (texto) para o titulo, evitando o seletor de
+    # marketplace; se nao houver, cai no primeiro campo preenchido.
+    for prefer_text in (True, False):
+        for field in fields:
+            if prefer_text and (field["type"] == "select" or field["key"] == "marketplace"):
+                continue
+            value = data.get(field["key"])
+            if value not in (None, ""):
+                title = str(value)
+                break
+        if title:
+            break
+
+    marketplace = str(data.get("marketplace") or "")
+    sku = str(data.get("sku") or data.get("sku_interno") or data.get("sku_do_marketplace") or "")
+    return title[:200], marketplace, sku
+
+
+@app.get("/modules/{page}/fields")
+def module_fields(page: str, user: models.User = Depends(require_user)):
+    return {"page": page, "fields": build_module_fields(page)}
+
+
+@app.get("/modules/{page}/records")
+def module_records_list(
+    page: str,
+    search: str = "",
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    query = db.query(models.ModuleRecord).filter(models.ModuleRecord.module_page == page)
+    records = query.order_by(models.ModuleRecord.id.desc()).all()
+    serialized = [serialize_module_record(record) for record in records]
+
+    term = search.strip().lower()
+    if term:
+        serialized = [
+            item
+            for item in serialized
+            if term in json.dumps(item, ensure_ascii=False).lower()
+        ]
+
+    return serialized
+
+
+@app.post("/modules/{page}/records")
+def module_record_create(
+    page: str,
+    payload: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    data = payload if isinstance(payload, dict) else {}
+    title, marketplace, sku = _module_record_meta(page, data)
+    record = models.ModuleRecord(
+        module_page=page,
+        title=title,
+        marketplace=marketplace,
+        sku=sku,
+        data=json.dumps(data, ensure_ascii=False, default=str),
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return serialize_module_record(record)
+
+
+@app.put("/modules/{page}/records/{record_id}")
+def module_record_update(
+    page: str,
+    record_id: int,
+    payload: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    record = (
+        db.query(models.ModuleRecord)
+        .filter(models.ModuleRecord.module_page == page, models.ModuleRecord.id == record_id)
+        .first()
+    )
+
+    if not record:
+        raise HTTPException(status_code=404, detail="Registro nao encontrado")
+
+    data = payload if isinstance(payload, dict) else {}
+    title, marketplace, sku = _module_record_meta(page, data)
+    record.title = title
+    record.marketplace = marketplace
+    record.sku = sku
+    record.data = json.dumps(data, ensure_ascii=False, default=str)
+    record.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(record)
+    return serialize_module_record(record)
+
+
+@app.delete("/modules/{page}/records/{record_id}")
+def module_record_delete(
+    page: str,
+    record_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    record = (
+        db.query(models.ModuleRecord)
+        .filter(models.ModuleRecord.module_page == page, models.ModuleRecord.id == record_id)
+        .first()
+    )
+
+    if not record:
+        raise HTTPException(status_code=404, detail="Registro nao encontrado")
+
+    db.delete(record)
+    db.commit()
+    return {"message": "Registro removido"}
 
 
 @app.post("/products")

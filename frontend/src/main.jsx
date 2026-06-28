@@ -24,8 +24,9 @@ const DataSpace = lazy(() => import("./pages/DataSpace"));
 const ImportShopee = lazy(() => import("./pages/ImportShopee"));
 const MarketplaceConnect = lazy(() => import("./pages/MarketplaceConnect"));
 const MarketplaceFees = lazy(() => import("./pages/MarketplaceFees"));
+const FieldMapping = lazy(() => import("./pages/FieldMapping"));
+const ModuleWorkspace = lazy(() => import("./pages/ModuleWorkspace"));
 const MercadoLivreIntegration = lazy(() => import("./pages/MercadoLivreIntegration"));
-const ModulePlaceholder = lazy(() => import("./pages/ModulePlaceholder"));
 const OrderSettings = lazy(() => import("./pages/OrderSettings"));
 const Orders = lazy(() => import("./pages/Orders"));
 const Plans = lazy(() => import("./pages/Plans"));
@@ -128,6 +129,7 @@ function App() {
     "shein-integration",
     "tiktok-integration",
     "temu-integration",
+    "field-mapping",
     "stock-temu",
     "settings-orders",
     "settings-nfe",
@@ -343,6 +345,7 @@ function App() {
           )}
           {page === "pricing-history-view" && <PricingHistory />}
           {page === "marketplace-fees" && <MarketplaceFees />}
+          {page === "field-mapping" && <FieldMapping />}
           {page === "pricing-rules" && <PricingRules setPage={setPage} />}
           {stockPages.includes(page) && (
             <Stock activePage={page} setPage={setPage} />
@@ -382,7 +385,7 @@ function App() {
             !advancedSettingsPages.includes(page) && (
             <OrderSettings activePage={page} setPage={setPage} />
           )}
-          {!knownPages.includes(page) && <ModulePlaceholder page={page} />}
+          {!knownPages.includes(page) && <ModuleWorkspace page={page} />}
         </Suspense>
       </main>
     </div>
