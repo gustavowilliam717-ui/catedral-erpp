@@ -27,15 +27,21 @@ const feeRules = [
   },
   {
     marketplace: "Shein",
-    percent: 10,
-    fixedDescription: "Sem taxa fixa cadastrada",
-    notes: "Taxa base local para comparacao.",
+    percent: 16,
+    fixedDescription: "Sem taxa fixa",
+    notes: "16% desde 2024. Novos vendedores CNPJ: 90 dias de isencao.",
   },
   {
     marketplace: "Temu",
-    percent: 8,
-    fixedDescription: "Sem taxa fixa cadastrada",
-    notes: "Taxa base local para comparacao.",
+    percent: 20,
+    fixedDescription: "Sem taxa fixa",
+    notes: "Varia de 15% a 30% por categoria (padrao 20%).",
+  },
+  {
+    marketplace: "Kwai Shop",
+    percent: 20,
+    fixedDescription: "R$ 4 por item",
+    notes: "20% + R$ 4. Novos vendedores: 14% nos primeiros 45 dias.",
   },
 ];
 
@@ -82,11 +88,15 @@ function getMarketplaceRule(marketplace, price, adType, sellerType) {
   }
 
   if (marketplace === "Shein") {
-    return { percent: 10, fixed: 0 };
+    return { percent: 16, fixed: 0 };
   }
 
   if (marketplace === "Temu") {
-    return { percent: 8, fixed: 0 };
+    return { percent: 20, fixed: 0 };
+  }
+
+  if (marketplace === "Kwai Shop") {
+    return { percent: 20, fixed: 4 };
   }
 
   return { percent: 16, fixed: 0 };
