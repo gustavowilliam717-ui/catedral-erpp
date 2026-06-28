@@ -5731,6 +5731,269 @@ def list_receivables(
     }
 
 
+# =========================================================================
+# Analise de Vendas (Performance das Vendas) agregando todas as plataformas.
+# KPIs com comparacao ao periodo anterior, serie por data e por loja.
+# =========================================================================
+
+@app.get("/analytics/sales")
+def analytics_sales(
+    period: str = "30d",
+    start: str = "",
+    end: str = "",
+    marketplace: str = "",
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    today = datetime.utcnow().date()
+
+    if period == "7d":
+        s, e = today - timedelta(days=6), today
+    elif period == "month":
+        s, e = today.replace(day=1), today
+    elif period == "custom" and start and end:
+        try:
+            s = datetime.strptime(start, "%Y-%m-%d").date()
+            e = datetime.strptime(end, "%Y-%m-%d").date()
+        except ValueError:
+            s, e = today - timedelta(days=29), today
+    else:
+        s, e = today - timedelta(days=29), today
+
+    if e < s:
+        s, e = e, s
+
+    length = (e - s).days + 1
+    prev_e = s - timedelta(days=1)
+    prev_s = prev_e - timedelta(days=length - 1)
+
+    revenues = db.query(models.Revenue).filter(models.Revenue.category == "Venda").all()
+    orders = db.query(models.MarketplaceOrder).all()
+
+    def aggregate(ds, de):
+        total = 0.0
+        count = 0
+        by_date = {}
+        by_plat = {}
+
+        for r in revenues:
+            d = r.created_at.date() if r.created_at else None
+            if not d or d < ds or d > de:
+                continue
+            label = r.marketplace or "Loja"
+            if marketplace and label != marketplace:
+                continue
+            value = float(r.value or 0)
+            total += value
+            count += 1
+            by_date[d.isoformat()] = by_date.get(d.isoformat(), 0.0) + value
+            entry = by_plat.setdefault(label, {"marketplace": label, "value": 0.0, "orders": 0})
+            entry["value"] += value
+            entry["orders"] += 1
+
+        clients = set()
+        for o in orders:
+            try:
+                d = datetime.strptime((o.order_date or "")[:10], "%Y-%m-%d").date()
+            except (ValueError, TypeError):
+                d = None
+            if d and ds <= d <= de and o.buyer_name:
+                if not marketplace or (o.marketplace or "") == marketplace:
+                    clients.add(o.buyer_name)
+
+        return {"total": total, "orders": count, "by_date": by_date, "by_plat": by_plat, "clients": len(clients)}
+
+    cur = aggregate(s, e)
+    prev = aggregate(prev_s, prev_e)
+
+    def pct(a, b):
+        if b:
+            return round(((a - b) / b) * 100, 1)
+        return 0.0 if not a else 100.0
+
+    series = []
+    cursor = s
+    while cursor <= e:
+        key = cursor.isoformat()
+        series.append({"date": key, "value": round(cur["by_date"].get(key, 0.0), 2)})
+        cursor += timedelta(days=1)
+
+    prev_series = []
+    cursor = prev_s
+    while cursor <= prev_e:
+        prev_series.append(round(prev["by_date"].get(cursor.isoformat(), 0.0), 2))
+        cursor += timedelta(days=1)
+
+    cur_clients = cur["clients"] or 0
+    prev_clients = prev["clients"] or 0
+    cur_spc = (cur["total"] / cur_clients) if cur_clients else 0.0
+    prev_spc = (prev["total"] / prev_clients) if prev_clients else 0.0
+
+    return {
+        "period": {"start": s.isoformat(), "end": e.isoformat()},
+        "kpis": {
+            "total_sales": round(cur["total"], 2),
+            "total_orders": cur["orders"],
+            "valid_sales": round(cur["total"], 2),
+            "valid_orders": cur["orders"],
+            "clients": cur_clients,
+            "sales_per_client": round(cur_spc, 2),
+        },
+        "comparison": {
+            "total_sales": pct(cur["total"], prev["total"]),
+            "total_orders": pct(cur["orders"], prev["orders"]),
+            "valid_sales": pct(cur["total"], prev["total"]),
+            "valid_orders": pct(cur["orders"], prev["orders"]),
+            "clients": pct(cur_clients, prev_clients),
+            "sales_per_client": pct(cur_spc, prev_spc),
+        },
+        "series": series,
+        "prev_series": prev_series,
+        "by_marketplace": sorted(cur["by_plat"].values(), key=lambda x: x["value"], reverse=True),
+    }
+
+
+# =========================================================================
+# Devolucoes / Reembolsos de todas as plataformas. Quando as APIs conectarem,
+# distribute_marketplace_return distribui o payload para os campos canonicos.
+# =========================================================================
+
+RETURN_STATES = ["para_receber", "recebido", "completo", "excecao"]
+
+
+def normalize_return_state(value):
+    s = str(value or "").strip().lower()
+    if any(k in s for k in ("para_receber", "para receber", "to_receive", "pending", "request", "solicit", "criado")):
+        return "para_receber"
+    if any(k in s for k in ("excecao", "exception", "reject", "disput", "erro")):
+        return "excecao"
+    if any(k in s for k in ("complet", "finaliz", "done", "refunded", "reembols")):
+        return "completo"
+    if any(k in s for k in ("receb", "received")):
+        return "recebido"
+    return "para_receber"
+
+
+def serialize_return(item: models.MarketplaceReturn):
+    return {
+        "id": item.id,
+        "marketplace": item.marketplace,
+        "return_number": item.return_number,
+        "order_number": item.order_number,
+        "product_name": item.product_name,
+        "sku": item.sku,
+        "image_url": item.image_url,
+        "quantity": item.quantity,
+        "value": item.value,
+        "reason": item.reason,
+        "buyer": item.buyer,
+        "logistics_status": item.logistics_status,
+        "tracking": item.tracking,
+        "platform_status": item.platform_status,
+        "state": item.state,
+        "store": item.store,
+        "return_time": item.return_time,
+        "updated_at": item.updated_at.isoformat() if item.updated_at else None,
+    }
+
+
+def distribute_marketplace_return(db: Session, provider: str, payload: dict, user_id: int = 0):
+    """Normaliza e grava uma devolucao vinda da API de um marketplace."""
+    label = get_connector_meta(provider)["label"] if provider in GENERIC_CONNECTORS else provider
+    flat = _md_flatten(payload)
+    g = lambda *aliases: _md_value(flat, list(aliases))
+
+    return_number = str(g("return_sn", "return_number", "return_id", "reverse_order_id", "id") or "").strip()
+    if not return_number:
+        return None
+
+    existing = (
+        db.query(models.MarketplaceReturn)
+        .filter(models.MarketplaceReturn.provider == provider, models.MarketplaceReturn.return_number == return_number)
+        .first()
+    )
+    if not existing:
+        existing = models.MarketplaceReturn(provider=provider, return_number=return_number, user_id=user_id)
+        db.add(existing)
+
+    existing.marketplace = label
+    existing.order_number = str(g("order_sn", "order_number", "order_id") or "")
+    existing.product_name = str(g("item_name", "product_name", "name", "title") or "")
+    existing.sku = str(g("sku", "seller_sku", "item_sku") or "")
+    existing.quantity = int(parse_number(g("quantity", "amount", "qty"), 1) or 1)
+    existing.value = parse_number(g("refund_amount", "amount", "value", "total"), 0)
+    existing.reason = str(g("reason", "return_reason", "reason_text") or "")
+    existing.buyer = str(g("buyer_username", "buyer_name", "user") or "")
+    existing.logistics_status = str(g("logistics_status", "shipping_status") or "")
+    existing.tracking = str(g("tracking_number", "tracking_no", "tracking") or "")
+    existing.platform_status = str(g("status", "return_status", "platform_status") or "")
+    existing.state = normalize_return_state(g("status", "return_status", "state"))
+    existing.return_time = str(g("create_time", "created_at", "return_time", "ctime") or "")
+    existing.updated_at = datetime.utcnow()
+    return existing
+
+
+@app.get("/returns")
+def list_returns(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    items = db.query(models.MarketplaceReturn).order_by(models.MarketplaceReturn.id.desc()).all()
+    serialized = [serialize_return(item) for item in items]
+    counts = {state: 0 for state in RETURN_STATES}
+    total_value = 0.0
+    for item in serialized:
+        counts[item["state"]] = counts.get(item["state"], 0) + 1
+        total_value += float(item["value"] or 0)
+    return {
+        "returns": serialized,
+        "counts": counts,
+        "total": len(serialized),
+        "total_value": round(total_value, 2),
+    }
+
+
+@app.post("/returns")
+def create_return(
+    payload: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    data = payload if isinstance(payload, dict) else {}
+    item = models.MarketplaceReturn(
+        user_id=user.id,
+        marketplace=str(data.get("marketplace") or "").strip(),
+        return_number=str(data.get("return_number") or "").strip() or f"DEV-{int(time.time())}",
+        order_number=str(data.get("order_number") or "").strip(),
+        product_name=str(data.get("product_name") or "").strip(),
+        sku=str(data.get("sku") or "").strip(),
+        quantity=int(parse_number(data.get("quantity"), 1) or 1),
+        value=parse_number(data.get("value"), 0),
+        reason=str(data.get("reason") or "").strip(),
+        buyer=str(data.get("buyer") or "").strip(),
+        state=normalize_return_state(data.get("state")),
+        return_time=str(data.get("return_time") or datetime.utcnow().strftime("%Y-%m-%d %H:%M")),
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return serialize_return(item)
+
+
+@app.delete("/returns/{return_id}")
+def delete_return(
+    return_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_user),
+):
+    item = db.query(models.MarketplaceReturn).filter(models.MarketplaceReturn.id == return_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Devolucao nao encontrada")
+    db.delete(item)
+    db.commit()
+    return {"message": "Devolucao removida"}
+
+
 @app.post("/products")
 def create_product(
     product: schemas.ProductCreate,

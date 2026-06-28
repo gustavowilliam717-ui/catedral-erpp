@@ -247,6 +247,34 @@ class AccountPayable(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 
+class MarketplaceReturn(Base):
+    """Devolucao/reembolso de qualquer marketplace, normalizada por campo."""
+
+    __tablename__ = "marketplace_returns"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True, default=0)
+    provider = Column(String, default="", index=True)
+    marketplace = Column(String, default="", index=True)
+    return_number = Column(String, default="", index=True)
+    order_number = Column(String, default="", index=True)
+    product_name = Column(String, default="")
+    sku = Column(String, default="")
+    image_url = Column(String, default="")
+    quantity = Column(Integer, default=1)
+    value = Column(Float, default=0)
+    reason = Column(String, default="")
+    buyer = Column(String, default="")
+    logistics_status = Column(String, default="")
+    tracking = Column(String, default="")
+    platform_status = Column(String, default="")
+    state = Column(String, default="para_receber")  # para_receber | recebido | completo | excecao
+    store = Column(String, default="")
+    return_time = Column(String, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
 class FiscalInvoice(Base):
     __tablename__ = "fiscal_invoices"
 

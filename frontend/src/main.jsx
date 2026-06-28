@@ -28,6 +28,8 @@ const MarketplaceFees = lazy(() => import("./pages/MarketplaceFees"));
 const FieldMapping = lazy(() => import("./pages/FieldMapping"));
 const AccountsPayable = lazy(() => import("./pages/AccountsPayable"));
 const AccountsReceivable = lazy(() => import("./pages/AccountsReceivable"));
+const SalesAnalysis = lazy(() => import("./pages/SalesAnalysis"));
+const Returns = lazy(() => import("./pages/Returns"));
 const ModuleWorkspace = lazy(() => import("./pages/ModuleWorkspace"));
 const MercadoLivreIntegration = lazy(() => import("./pages/MercadoLivreIntegration"));
 const OrderSettings = lazy(() => import("./pages/OrderSettings"));
@@ -133,6 +135,8 @@ function App() {
     "tiktok-integration",
     "temu-integration",
     "field-mapping",
+    "sales-analysis",
+    "returns",
     "stock-temu",
     "settings-orders",
     "settings-nfe",
@@ -353,6 +357,8 @@ function App() {
           {page === "pricing-history-view" && <PricingHistory />}
           {page === "marketplace-fees" && <MarketplaceFees />}
           {page === "field-mapping" && <FieldMapping />}
+          {page === "sales-analysis" && <SalesAnalysis />}
+          {page === "returns" && <Returns />}
           {page === "pricing-rules" && <PricingRules setPage={setPage} />}
           {stockPages.includes(page) && (
             <Stock activePage={page} setPage={setPage} />
